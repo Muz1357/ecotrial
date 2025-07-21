@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify , render_template, redirect, url_for, session, flash
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for, session, flash
 from models.db import get_connection
 
 admin_bp = Blueprint('admin', __name__)
@@ -21,17 +21,13 @@ def admin_dashboard():
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin.admin_login'))
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    with get_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT id, name, email FROM user_account WHERE role='business_owner' AND is_approved=FALSE")
+            pending_users = cursor.fetchall()
 
-    cursor.execute("SELECT id, name, email FROM user_account WHERE role='business_owner' AND is_approved=FALSE")
-    pending_users = cursor.fetchall()
-
-    cursor.execute("SELECT id, title FROM listing WHERE is_approved=FALSE")
-    pending_listings = cursor.fetchall()
-
-    cursor.close()
-    conn.close()
+            cursor.execute("SELECT id, title FROM listing WHERE is_approved=FALSE")
+            pending_listings = cursor.fetchall()
 
     return render_template('admin_dashboard.html', pending_users=pending_users, pending_listings=pending_listings)
 
@@ -40,12 +36,10 @@ def approve_user_web(user_id):
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin.admin_login'))
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE user_account SET is_approved=TRUE WHERE id=%s", (user_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("UPDATE user_account SET is_approved=TRUE WHERE id=%s", (user_id,))
+            conn.commit()
     flash('User approved successfully.')
     return redirect(url_for('admin.admin_dashboard'))
 
@@ -54,12 +48,10 @@ def approve_listing_web(listing_id):
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin.admin_login'))
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE listing SET is_approved=TRUE WHERE id=%s", (listing_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("UPDATE listing SET is_approved=TRUE WHERE id=%s", (listing_id,))
+            conn.commit()
     flash('Listing approved successfully.')
     return redirect(url_for('admin.admin_dashboard'))
 
@@ -73,12 +65,10 @@ def view_listing_detail(listing_id):
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin.admin_login'))
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM listing WHERE id=%s", (listing_id,))
-    listing = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute("SELECT * FROM listing WHERE id=%s", (listing_id,))
+            listing = cursor.fetchone()
 
     if not listing:
         flash("Listing not found.")
@@ -86,28 +76,26 @@ def view_listing_detail(listing_id):
 
     return render_template('listing_detail.html', listing=listing)
 
-@admin_bp.route('/decline_user/<int:user_id>')
+@admin_bp.route('/decline_user/<int:user_id>', methods=['POST'])
 def decline_user_web(user_id):
-    # You can delete or mark the user as declined in the DB
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM user_account WHERE id = %s", (user_id,))
-    conn.commit()
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('admin.admin_login'))
+
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM user_account WHERE id = %s", (user_id,))
+            conn.commit()
     flash("User declined successfully.")
     return redirect(url_for('admin.admin_dashboard'))
-
-
 
 @admin_bp.route('/admin/decline-listing/<int:listing_id>', methods=['POST'])
 def decline_listing_web(listing_id):
     if not session.get('admin_logged_in'):
         return redirect(url_for('admin.admin_login'))
 
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM listing WHERE id=%s", (listing_id,))
-    conn.commit()
-    cursor.close()
-    conn.close()
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM listing WHERE id=%s", (listing_id,))
+            conn.commit()
     flash('Listing declined and removed.')
     return redirect(url_for('admin.admin_dashboard'))

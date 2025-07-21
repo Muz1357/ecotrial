@@ -1,10 +1,10 @@
-from flask import Flask, jsonify
+from flask import Flask
 from flask_cors import CORS
-from config import UPLOAD_FOLDER
+import cloudinary
 import os
 
-# Route imports
-from models.db import get_connection
+# Import your blueprints
+from models.db import get_connection  # make sure get_connection uses env vars
 from routes.auth_routes import auth_bp
 from routes.listing_routes import listing_bp
 from routes.booking_routes import booking_bp
@@ -12,20 +12,24 @@ from routes.admin_routes import admin_bp
 
 app = Flask(__name__)
 CORS(app)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-app.secret_key = 'your_secret_key_here'
+# Use environment variable for secret key (set this in Heroku/Railway)
+app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key')
 
-# Ensure upload folder exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Configure Cloudinary from environment variables
+cloudinary.config(
+    cloud_name=os.environ.get('dfnzcn8dl'),
+    api_key=os.environ.get('543959871613564'),
+    api_secret=os.environ.get("**********"),
+    secure=True
+)
 
-# Register Blueprints
+# Register blueprints
 app.register_blueprint(auth_bp)
 app.register_blueprint(listing_bp)
 app.register_blueprint(booking_bp)
 app.register_blueprint(admin_bp)
 
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    # Use 0.0.0.0 so Heroku can bind the app
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)

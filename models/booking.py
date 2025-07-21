@@ -8,12 +8,10 @@ class Booking:
         self.booking_date = booking_date
 
     def save(self):
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO booking (listing_id, tourist_id, booking_date)
-            VALUES (%s, %s, %s)
-        """, (self.listing_id, self.tourist_id, self.booking_date))
-        conn.commit()
-        cursor.close()
-        conn.close()
+        with get_connection() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    INSERT INTO booking (listing_id, tourist_id, booking_date)
+                    VALUES (%s, %s, %s)
+                """, (self.listing_id, self.tourist_id, self.booking_date))
+            conn.commit()

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
-import os
+import cloudinary.uploader
 from models.listing import Listing
 from config import ALLOWED_EXTENSIONS
 
@@ -25,19 +25,19 @@ def upload_listing():
         return jsonify({"error": "No selected image"}), 400
 
     if image and allowed_file(image.filename):
-        filename = secure_filename(image.filename)
-        save_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
-        image.save(save_path)
+        # Upload image to Cloudinary
+        upload_result = cloudinary.uploader.upload(image)
+        image_url = upload_result.get('secure_url')
 
         data = request.form
         listing = Listing(
             user_id=data.get('user_id'),
             title=data.get('title'),
             description=data.get('description'),
-            price=data.get('price'),           # <-- added price
-            location=data.get('location'),     # <-- added location
-            image_path=filename,
-            is_approved=False  # Needs admin approval
+            price=data.get('price'),           # Make sure Listing supports these fields
+            location=data.get('location'),
+            image_path=image_url,               # Save URL instead of filename
+            is_approved=False                  # Needs admin approval
         )
         listing.save()
 
