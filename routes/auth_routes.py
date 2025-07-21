@@ -13,6 +13,7 @@ def allowed_file(filename):
 @auth_bp.route('/register', methods=['POST'])
 def register():
     try:
+        # Parse required fields
         name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
@@ -27,21 +28,24 @@ def register():
 
         business_name = None
         proof_url = None
+
         if role == 'business_owner':
             business_name = request.form.get('business_name')
             proof_file = request.files.get('proof')
 
             if not business_name or not proof_file:
-                return jsonify({"error": "Business name and proof are required"}), 400
+                return jsonify({"error": "Business name and proof file are required"}), 400
 
             if not allowed_file(proof_file.filename):
                 return jsonify({"error": "File type not allowed"}), 400
 
-            # Upload proof to Cloudinary
+            # Upload to Cloudinary
             upload_result = cloudinary.uploader.upload(proof_file)
             proof_url = upload_result.get('secure_url')
 
+        # Hash password and save user
         hashed_password = generate_password_hash(password)
+
         user = User(
             name=name,
             email=email,
@@ -49,8 +53,9 @@ def register():
             role=role,
             is_approved=False if role == 'business_owner' else True,
             business_name=business_name,
-            proof_path=proof_url  # save URL instead of local path
+            proof_path=proof_url
         )
+
         user.save()
 
         return jsonify({"message": "User registered successfully"}), 201
