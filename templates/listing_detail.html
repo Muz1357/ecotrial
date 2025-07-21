@@ -48,7 +48,7 @@
     <div class="card shadow p-4">
       <h5 class="card-title">{{ listing.title }}</h5>
       <p><strong>Description:</strong> {{ listing.description }}</p>
-      <img src="{{ url_for('static', filename='uploads/' + listing.image_path) }}" class="img-fluid rounded mb-3" alt="Listing Image" />
+      <img src="{{ listing.image_path }}" class="img-fluid rounded mb-3" alt="Listing Image" />
 
       <div class="d-flex gap-2">
         <form method="POST" action="{{ url_for('admin.approve_listing_web', listing_id=listing.id) }}">

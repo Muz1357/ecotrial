@@ -77,21 +77,22 @@
               {% if user.certificate_path %}
                 <p>Certificate:</p>
                 {% if user.certificate_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
-                  <img src="{{ url_for('static', filename='uploads/' + user.certificate_path) }}" 
+                  <img src="{{ user.certificate_path }}" 
                        alt="Certificate Image" 
                        class="certificate-preview" />
                 {% elif user.certificate_path.lower().endswith('.pdf') %}
-                  <a href="{{ url_for('static', filename='uploads/' + user.certificate_path) }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+                  <a href="{{ user.certificate_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
                     View Certificate (PDF)
                   </a>
                 {% else %}
-                  <a href="{{ url_for('static', filename='uploads/' + user.certificate_path) }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+                  <a href="{{ user.certificate_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
                     View Certificate
                   </a>
                 {% endif %}
               {% else %}
                 <p><em>No certificate uploaded.</em></p>
               {% endif %}
+
               <form method="POST" action="{{ url_for('admin.approve_user_web', user_id=user.id) }}">
                 <div class="d-flex gap-2 mt-3">
                   <button type="submit" class="btn btn-approve btn-sm">Approve</button>
