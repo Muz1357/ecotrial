@@ -75,21 +75,21 @@
               <h6 class="card-title">{{ user.name }}</h6>
               <p>Email: {{ user.email }}</p>
 
-              {% if user.certificate_path %}
-                <p>Certificate:</p>
-                {% if user.certificate_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
-                  <img src="{{ user.certificate_path }}" 
-                       alt="Certificate Image" 
-                       class="certificate-preview" />
-                {% elif user.certificate_path.lower().endswith('.pdf') %}
-                  <a href="{{ user.certificate_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+              {% if user.proof_path %}
+                {% if user.proof_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
+                  <img src="{{ user.proof_path }}" alt="Certificate Image" class="certificate-preview" />
+                {% elif user.proof_path.lower().endswith('.pdf') %}
+                  <a href="{{ user.proof_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
                     View Certificate (PDF)
                   </a>
                 {% else %}
-                  <a href="{{ user.certificate_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
+                  <a href="{{ user.proof_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
                     View Certificate
                   </a>
                 {% endif %}
+              {% else %}
+                <p><em>No certificate uploaded.</em></p>
+              {% endif %}
               {% else %}
                 <p><em>No certificate uploaded.</em></p>
               {% endif %}
