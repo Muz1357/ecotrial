@@ -23,7 +23,11 @@ def admin_dashboard():
 
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
-            cursor.execute("SELECT id, name, email FROM user_account WHERE role='business_owner' AND is_approved=FALSE")
+            cursor.execute("""
+                SELECT id, name, email, proof_path 
+                FROM user_account 
+                WHERE role='business_owner' AND is_approved=FALSE
+            """)
             pending_users = cursor.fetchall()
 
             cursor.execute("SELECT id, title FROM listing WHERE is_approved=FALSE")
