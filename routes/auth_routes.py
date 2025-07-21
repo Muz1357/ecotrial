@@ -13,13 +13,11 @@ def allowed_file(filename):
 @auth_bp.route('/register', methods=['POST'])
 def register():
     try:
-        # Parse required fields
         name = request.form.get('name')
         email = request.form.get('email')
         password = request.form.get('password')
         role = request.form.get('role')
 
-        # Validate required fields
         if not name or not email or not password or not role:
             return jsonify({"error": "Missing required fields"}), 400
 
@@ -36,14 +34,20 @@ def register():
             if not business_name or not proof_file:
                 return jsonify({"error": "Business name and proof file are required"}), 400
 
+            print(f"Received file: {proof_file.filename}")
+            print(f"Allowed file extensions: {ALLOWED_EXTENSIONS}")
+            print(f"File allowed? {allowed_file(proof_file.filename)}")
+
             if not allowed_file(proof_file.filename):
                 return jsonify({"error": "File type not allowed"}), 400
 
-            # Upload to Cloudinary
-            upload_result = cloudinary.uploader.upload(proof_file)
-            proof_url = upload_result.get('secure_url')
+            try:
+                upload_result = cloudinary.uploader.upload(proof_file)
+                proof_url = upload_result.get('secure_url')
+            except Exception as e:
+                print(f"Cloudinary upload failed: {e}")
+                return jsonify({"error": "Failed to upload proof file"}), 500
 
-        # Hash password and save user
         hashed_password = generate_password_hash(password)
 
         user = User(
