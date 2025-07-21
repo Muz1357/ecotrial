@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify, current_app
-from werkzeug.utils import secure_filename
 import cloudinary.uploader
 from models.listing import Listing
 from config import ALLOWED_EXTENSIONS
@@ -25,23 +24,27 @@ def upload_listing():
         return jsonify({"error": "No selected image"}), 400
 
     if image and allowed_file(image.filename):
-        # Upload image to Cloudinary
-        upload_result = cloudinary.uploader.upload(image)
-        image_url = upload_result.get('secure_url')
+        try:
+            upload_result = cloudinary.uploader.upload(image)
+            image_url = upload_result.get('secure_url')
 
-        data = request.form
-        listing = Listing(
-            user_id=data.get('user_id'),
-            title=data.get('title'),
-            description=data.get('description'),
-            price=data.get('price'),           # Make sure Listing supports these fields
-            location=data.get('location'),
-            image_path=image_url,               # Save URL instead of filename
-            is_approved=False                  # Needs admin approval
-        )
-        listing.save()
+            data = request.form
+            listing = Listing(
+                user_id=data.get('user_id'),
+                title=data.get('title'),
+                description=data.get('description'),
+                price=data.get('price'),
+                location=data.get('location'),
+                image_path=image_url,
+                is_approved=False  # Needs admin approval
+            )
+            listing.save()
 
-        return jsonify({"message": "Listing uploaded, pending admin approval"}), 201
+            return jsonify({"message": "Listing uploaded, pending admin approval"}), 201
+
+        except Exception as e:
+            current_app.logger.error(f"Upload or save failed: {e}")
+            return jsonify({"error": "Failed to upload image or save listing"}), 500
     else:
         return jsonify({"error": "File type not allowed"}), 400
 
