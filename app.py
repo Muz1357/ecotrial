@@ -18,9 +18,9 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key')
 
 # Configure Cloudinary from environment variables
 cloudinary.config(
-    cloud_name=os.environ.get('dfnzcn8dl'),
-    api_key=os.environ.get('543959871613564'),
-    api_secret=os.environ.get("A6vgVVwrMJDxZHJ3H0hVn8K0nKs"),
+    cloud_name='dfnzcn8dl',
+    api_key='543959871613564',
+    api_secret="A6vgVVwrMJDxZHJ3H0hVn8K0nKs",
     secure=True
 )
 
