@@ -54,3 +54,40 @@ def register():
     user.save()
 
     return jsonify({"message": "User registered successfully"}), 201
+
+@auth_bp.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Missing JSON body"}), 400
+
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
+
+    user = User.find_by_email(email)
+    if not user:
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    if not check_password_hash(user.password, password):
+        return jsonify({"error": "Invalid email or password"}), 401
+
+    # Check if user is approved (especially for business owners)
+    if user.role == 'business_owner' and not user.is_approved:
+        return jsonify({"error": "Account pending admin approval"}), 403
+
+    # Build response data to return (exclude sensitive info)
+    user_data = {
+        "id": user.id,
+        "name": user.name,
+        "email": user.email,
+        "role": user.role,
+        "is_approved": user.is_approved,
+        "business_name": user.business_name,
+        "proof_path": user.proof_path,
+        # Add other fields you want to expose
+    }
+
+    return jsonify(user_data), 200
