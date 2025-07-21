@@ -45,8 +45,9 @@
     }
 
     img.certificate-preview {
-      max-width: 100%;
-      max-height: 150px;
+      width: 100%;
+      max-height: 100px;
+      object-fit: contain;
       border-radius: 8px;
       margin-top: 8px;
       margin-bottom: 8px;
@@ -96,8 +97,11 @@
               <form method="POST" action="{{ url_for('admin.approve_user_web', user_id=user.id) }}">
                 <div class="d-flex gap-2 mt-3">
                   <button type="submit" class="btn btn-approve btn-sm">Approve</button>
-                  <a href="{{ url_for('admin.decline_user_web', user_id=user.id) }}" class="btn btn-decline btn-sm">Decline</a>
                 </div>
+              </form>
+
+              <form method="POST" action="{{ url_for('admin.decline_user_web', user_id=user.id) }}">
+                <button type="submit" class="btn btn-decline btn-sm mt-2">Decline</button>
               </form>
 
             </div>
