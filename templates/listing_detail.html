@@ -24,6 +24,7 @@
 
     .card {
       border-radius: 20px;
+      max-width: 700px;
     }
 
     .btn-approve {
@@ -49,11 +50,6 @@
       height: 100%;
       object-fit: cover;
     }
-
-    .card-wrapper {
-      max-width: 700px;
-      margin: 0 auto;
-    }
   </style>
 </head>
 <body>
@@ -64,23 +60,21 @@
   </div>
 
   <div class="container mt-4">
-    <div class="card-wrapper">
-      <div class="card shadow p-4">
-        <h5 class="card-title">{{ listing.title }}</h5>
-        <p><strong>Description:</strong> {{ listing.description }}</p>
+    <div class="card shadow p-4">
+      <h5 class="card-title">{{ listing.title }}</h5>
+      <p><strong>Description:</strong> {{ listing.description }}</p>
 
-        <div class="listing-image-container">
-          <img src="{{ listing.image_path }}" class="listing-image" alt="Listing Image" />
-        </div>
+      <div class="listing-image-container">
+        <img src="{{ listing.image_path }}" class="listing-image" alt="Listing Image" />
+      </div>
 
-        <div class="d-flex gap-2">
-          <form method="POST" action="{{ url_for('admin.approve_listing_web', listing_id=listing.id) }}">
-            <button type="submit" class="btn btn-approve">Approve</button>
-          </form>
-          <form method="POST" action="{{ url_for('admin.decline_listing_web', listing_id=listing.id) }}">
-            <button type="submit" class="btn btn-decline">Decline</button>
-          </form>
-        </div>
+      <div class="d-flex gap-2">
+        <form method="POST" action="{{ url_for('admin.approve_listing_web', listing_id=listing.id) }}">
+          <button type="submit" class="btn btn-approve">Approve</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.decline_listing_web', listing_id=listing.id) }}">
+          <button type="submit" class="btn btn-decline">Decline</button>
+        </form>
       </div>
     </div>
   </div>
