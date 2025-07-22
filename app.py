@@ -4,7 +4,7 @@ import cloudinary
 import os
 
 # Import your blueprints
-from models.db import get_connection  # make sure get_connection uses env vars
+from models.db import get_connection  
 from routes.auth_routes import auth_bp
 from routes.listing_routes import listing_bp
 from routes.booking_routes import booking_bp
