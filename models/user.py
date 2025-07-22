@@ -1,30 +1,25 @@
-from models.db import get_connection
-from werkzeug.security import generate_password_hash
+from db import get_connection
 
 class User:
-    def __init__(self, id=None, name=None, email=None, password=None, role=None,
-                 created_at=None, is_approved=False, proof_path=None, business_name=None):
+    def __init__(self, id, name, email, password, role, is_approved, created_at=None, proof_path=None, business_name=None):
         self.id = id
         self.name = name
         self.email = email
-        self.password = password  # hashed password stored here
+        self.password = password
         self.role = role
         self.created_at = created_at
         self.is_approved = is_approved
         self.proof_path = proof_path
         self.business_name = business_name
 
-    def save(self):
+    @staticmethod
+    def create(name, email, password, role, is_approved=0, business_name=None, proof_path=None):
         conn = get_connection()
         cursor = conn.cursor()
-        hashed_password = generate_password_hash(self.password)
-        cursor.execute(
-            """
-            INSERT INTO user_account (name, email, password, role, is_approved, proof_path, business_name)
+        cursor.execute("""
+            INSERT INTO user_account (name, email, password, role, is_approved, business_name, proof_path)
             VALUES (%s, %s, %s, %s, %s, %s, %s)
-            """,
-            (self.name, self.email, hashed_password, self.role, self.is_approved, self.proof_path, self.business_name)
-        )
+        """, (name, email, password, role, is_approved, business_name, proof_path))
         conn.commit()
         cursor.close()
         conn.close()
@@ -37,16 +32,17 @@ class User:
         user_data = cursor.fetchone()
         cursor.close()
         conn.close()
+
         if user_data:
             return User(
                 id=user_data['id'],
                 name=user_data['name'],
                 email=user_data['email'],
-                password=user_data['password'],  # hashed password stored here
+                password=user_data['password'],
                 role=user_data['role'],
-                created_at=user_data.get('created_at'),
                 is_approved=user_data['is_approved'],
+                created_at=user_data.get('created_at'),
                 proof_path=user_data.get('proof_path'),
-                business_name=user_data.get('business_name'),
+                business_name=user_data.get('business_name')
             )
         return None
