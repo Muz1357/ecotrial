@@ -72,7 +72,7 @@ def register():
 def login():
     try:
         data = request.get_json()
-        print(f"Received login data: {data}")  # Debug print
+        print(f"[DEBUG] Received login data: {data}")
 
         if not data:
             return jsonify({"error": "Missing JSON body"}), 400
@@ -85,13 +85,14 @@ def login():
 
         user = User.find_by_email(email)
         if not user:
-            print("User not found")  # Debug print
+            print("[DEBUG] User not found")
             return jsonify({"error": "Invalid email or password"}), 401
 
-        # This is where most issues occur
+        print(f"[DEBUG] Stored hashed password: {user.password}")
+        print(f"[DEBUG] Input password: {password}")
+
         if not check_password_hash(user.password, password):
-            print("Password does not match")  # Debug print
-            print(f"DB hash: {user.password}, Input: {password}")
+            print("[DEBUG] Password does not match")
             return jsonify({"error": "Invalid email or password"}), 401
 
         if user.role == 'business_owner' and not user.is_approved:
@@ -110,5 +111,5 @@ def login():
         return jsonify(user_data), 200
 
     except Exception as e:
-        print(f"Login route error: {e}")
+        print(f"[ERROR] Login route exception: {e}")
         return jsonify({"error": "Internal server error"}), 500
