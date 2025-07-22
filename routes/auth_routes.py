@@ -71,45 +71,36 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     try:
-        data = request.get_json()
-        print(f"[DEBUG] Received login data: {data}")
-
-        if not data:
-            return jsonify({"error": "Missing JSON body"}), 400
-
+        data = request.json
         email = data.get('email')
         password = data.get('password')
 
         if not email or not password:
-            return jsonify({"error": "Email and password are required"}), 400
+            return jsonify({'error': 'Missing fields'}), 400
 
         user = User.find_by_email(email)
         if not user:
-            print("[DEBUG] User not found")
-            return jsonify({"error": "Invalid email or password"}), 401
+            return jsonify({'error': 'User not found'}), 404
 
-        print(f"[DEBUG] Stored hashed password: {user.password}")
-        print(f"[DEBUG] Input password: {password}")
+        print("[DEBUG] Hashed:", user.password)
+        print("[DEBUG] Input:", password)
 
         if not check_password_hash(user.password, password):
-            print("[DEBUG] Password does not match")
-            return jsonify({"error": "Invalid email or password"}), 401
+            return jsonify({'error': 'Invalid credentials'}), 401
 
         if user.role == 'business_owner' and not user.is_approved:
-            return jsonify({"error": "Account pending admin approval"}), 403
+            return jsonify({'error': 'Business owner not approved yet'}), 403
 
-        user_data = {
-            "id": user.id,
-            "name": user.name,
-            "email": user.email,
-            "role": user.role,
-            "is_approved": user.is_approved,
-            "business_name": user.business_name,
-            "proof_path": user.proof_path,
-        }
-
-        return jsonify(user_data), 200
+        return jsonify({
+            'id': user.id,
+            'name': user.name,
+            'email': user.email,
+            'role': user.role,
+            'is_approved': user.is_approved,
+            'proof_path': user.proof_path,
+            'business_name': user.business_name
+        }), 200
 
     except Exception as e:
-        print(f"[ERROR] Login route exception: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        print("[ERROR] Login failed:", str(e))  # This prints in the terminal
+        return jsonify({'error': 'Internal server error'}), 500
