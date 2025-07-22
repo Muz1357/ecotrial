@@ -1,4 +1,4 @@
-from db import get_connection
+from models.db import get_connection 
 
 class User:
     def __init__(self, id, name, email, password, role, is_approved, created_at=None, proof_path=None, business_name=None):
