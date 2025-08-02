@@ -65,54 +65,6 @@
 
   <div class="container mt-4">
 
-    <!-- Pending Business Owners -->
-    <div class="mb-5">
-      <h5 class="text-dark mb-3">Pending Business Owners</h5>
-      {% if pending_users %}
-        <div class="row">
-          {% for user in pending_users %}
-          <div class="col-md-6 mb-3">
-            <div class="card p-3 shadow-sm">
-              <h6 class="card-title">{{ user.name }}</h6>
-              <p>Email: {{ user.email }}</p>
-
-              {% if user.proof_path %}
-                {% if user.proof_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')) %}
-                  <a href="{{ user.proof_path }}" target="_blank">
-                    <img src="{{ user.proof_path }}" alt="Certificate Image" class="certificate-preview" />
-                  </a>
-                {% elif user.proof_path.lower().endswith('.pdf') %}
-                  <a href="{{ user.proof_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
-                    View Certificate (PDF)
-                  </a>
-                {% else %}
-                  <a href="{{ user.proof_path }}" target="_blank" class="btn btn-outline-primary btn-sm mt-2">
-                    View Certificate
-                  </a>
-                {% endif %}
-              {% else %}
-                <p><em>No certificate uploaded.</em></p>
-              {% endif %}
-
-              <form method="POST" action="{{ url_for('admin.approve_user_web', user_id=user.id) }}">
-                <div class="d-flex gap-2 mt-3">
-                  <button type="submit" class="btn btn-approve btn-sm">Approve</button>
-                </div>
-              </form>
-
-              <form method="POST" action="{{ url_for('admin.decline_user_web', user_id=user.id) }}">
-                <button type="submit" class="btn btn-decline btn-sm mt-2">Decline</button>
-              </form>
-
-            </div>
-          </div>
-          {% endfor %}
-        </div>
-      {% else %}
-        <p class="text-muted">No pending business owners.</p>
-      {% endif %}
-    </div>
-
     <!-- Pending Listings -->
     <div>
       <h5 class="text-dark mb-3">Pending Listings</h5>
