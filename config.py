@@ -11,4 +11,4 @@ DB_CONFIG = {
 UPLOAD_FOLDER = None  
 
 # Allowed extensions (optional, if you validate uploads)
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
