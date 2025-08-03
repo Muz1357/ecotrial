@@ -34,14 +34,13 @@ def upload_listing():
         image_upload = cloudinary.uploader.upload(image)
         image_url = image_upload.get('secure_url')
 
-        eco_cert_upload = cloudinary.uploader.upload(eco_cert, resource_type="auto")
+        eco_cert_upload = cloudinary.uploader.upload(eco_cert)
         eco_cert_url = eco_cert_upload.get('secure_url')
 
         return jsonify({"message": "Listing uploaded successfully", "image_url": image_url, "cert_url": eco_cert_url}), 200
     except Exception as e:
         print("❌ Upload Error:", str(e))  # Print full error for debugging
         return jsonify({"error": str(e)}), 400
-
 
 
 @listing_bp.route('/listings/<int:listing_id>', methods=['GET'])
