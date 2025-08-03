@@ -18,11 +18,11 @@ def upload_listing():
     current_app.logger.info(f"Received files: {request.files}")
     current_app.logger.info(f"Received form data: {request.form}")
 
-    if 'image' not in request.files or 'eco_cert_file' not in request.files:
+    if 'image' not in request.files or 'eco_cert' not in request.files:
         return jsonify({"error": "Both listing image and eco certificate are required"}), 400
 
     image = request.files['image']
-    eco_cert = request.files['eco_cert_file']
+    eco_cert = request.files['eco_cert']
 
     if image.filename == '' or eco_cert.filename == '':
         return jsonify({"error": "One or more files are empty"}), 400
@@ -49,7 +49,7 @@ def upload_listing():
         description = data.get('description')
         price = data.get('price')
         location = data.get('location')
-        rooms_available = data.get('rooms_available')
+        rooms_available = data.get('rooms')  # changed
         room_details = data.get('room_details')
 
         if not all([user_id, title, description, price, location, rooms_available, room_details]):
