@@ -2,17 +2,17 @@ from models.db import get_connection
 
 class Listing:
     def __init__(self, id=None, user_id=None, title=None, description=None,
-                 price=None, location=None, image_path=None, eco_cert_url=None,
-                 rooms_available=None, room_details=None, is_approved=False):
+                 price=None, location=None, image_url=None, eco_cert_url=None,
+                 rooms_count=None, room_details=None, is_approved=False):
         self.id = id
         self.user_id = user_id
         self.title = title
         self.description = description
         self.price = price
         self.location = location
-        self.image_path = image_path
+        self.image_path = image_url
         self.eco_cert_url = eco_cert_url
-        self.rooms_available = rooms_available
+        self.rooms_available = rooms_count
         self.room_details = room_details
         self.is_approved = is_approved
 
