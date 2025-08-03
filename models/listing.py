@@ -2,7 +2,8 @@ from models.db import get_connection
 
 class Listing:
     def __init__(self, id=None, user_id=None, title=None, description=None,
-                 price=None, location=None, image_path=None, is_approved=False):
+                 price=None, location=None, image_path=None, eco_cert_url=None,
+                 rooms_available=None, room_details=None, is_approved=False):
         self.id = id
         self.user_id = user_id
         self.title = title
@@ -10,16 +11,25 @@ class Listing:
         self.price = price
         self.location = location
         self.image_path = image_path
+        self.eco_cert_url = eco_cert_url
+        self.rooms_available = rooms_available
+        self.room_details = room_details
         self.is_approved = is_approved
 
     def save(self):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO listing (user_id, title, description, price, location, image_path, is_approved)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (self.user_id, self.title, self.description, self.price,
-              self.location, self.image_path, self.is_approved))
+            INSERT INTO listing (
+                user_id, title, description, price, location,
+                image_path, eco_cert_url, rooms_available, room_details, is_approved
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            self.user_id, self.title, self.description, self.price,
+            self.location, self.image_path, self.eco_cert_url,
+            self.rooms_available, self.room_details, self.is_approved
+        ))
         conn.commit()
         cursor.close()
         conn.close()
