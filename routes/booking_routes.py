@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from models.booking import Booking
 from datetime import datetime
 
+from models.listing import Listing
+
 booking_bp = Blueprint('booking', __name__)
 
 @booking_bp.route('/bookings', methods=['POST'])
