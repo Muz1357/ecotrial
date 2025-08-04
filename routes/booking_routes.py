@@ -1,15 +1,15 @@
 from flask import Blueprint, request, jsonify
 from models.booking import Booking
+from models.listing import Listing
 from datetime import datetime
 from dateutil import parser
-
-from models.listing import Listing
+from models.db import get_connection
 
 booking_bp = Blueprint('booking', __name__)
 
 @booking_bp.route('/bookings', methods=['POST'])
 def create_booking():
-    print("👉 Received JSON:", request.get_json()) 
+    print("👉 Received JSON:", request.get_json())
     data = request.get_json()
     if not data:
         return jsonify({"error": "Missing JSON data"}), 400
@@ -22,7 +22,7 @@ def create_booking():
     if not listing_id or not tourist_id or not check_in or not check_out:
         return jsonify({"error": "Missing required booking fields"}), 400
 
-    # Validate dates
+    # ✅ Validate dates
     try:
         check_in_date = parser.isoparse(check_in)
         check_out_date = parser.isoparse(check_out)
@@ -31,7 +31,7 @@ def create_booking():
     except Exception:
         return jsonify({"error": "Invalid date format"}), 400
 
-    # ✅ Check room availability
+    # ✅ Fetch listing (dictionary)
     listing = Listing.get_listing_by_id(listing_id)
     if not listing:
         return jsonify({'error': 'Listing not found'}), 404
@@ -39,7 +39,7 @@ def create_booking():
     if listing['rooms_available'] <= 0:
         return jsonify({'error': 'No rooms available'}), 400
 
-    # ✅ Create booking and update room count
+    # ✅ Create the booking
     booking = Booking(
         listing_id=listing_id,
         tourist_id=tourist_id,
@@ -48,7 +48,13 @@ def create_booking():
     )
     booking.save()
 
-    listing['rooms_available'] -= 1
-    listing.save()
+    # ✅ Update rooms_available in DB
+    new_room_count = listing['rooms_available'] - 1
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE listing SET rooms_available = %s WHERE id = %s", (new_room_count, listing_id))
+    conn.commit()
+    cursor.close()
+    conn.close()
 
     return jsonify({"message": "Booking created successfully"}), 201
