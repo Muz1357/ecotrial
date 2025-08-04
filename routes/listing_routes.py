@@ -13,12 +13,6 @@ def get_listings():
     listings = Listing.get_approved_listings()
     return jsonify(listings), 200
 
-from flask import Blueprint, request, jsonify
-import cloudinary.uploader
-from models.listing import Listing
-
-listing_bp = Blueprint('listing_bp', __name__)
-
 @listing_bp.route('/upload-listing', methods=['POST'])
 def upload_listing():
     try:
