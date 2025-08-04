@@ -34,11 +34,10 @@ def create_booking():
     # ✅ Check room availability
     listing = Listing.get_listing_by_id(listing_id)
     if not listing:
-        return jsonify({"error": "Listing not found"}), 404
+        return jsonify({'error': 'Listing not found'}), 404
 
-
-    if Listing.rooms_available <= 0:
-        return jsonify({"error": "No rooms available"}), 400
+    if listing['rooms_available'] <= 0:
+        return jsonify({'error': 'No rooms available'}), 400
 
     # ✅ Create booking and update room count
     booking = Booking(
