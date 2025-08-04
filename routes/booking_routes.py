@@ -32,9 +32,10 @@ def create_booking():
         return jsonify({"error": "Invalid date format"}), 400
 
     # ✅ Check room availability
-    listing = Listing.query.filter_by(id=listing_id).first()
+    listing = Listing.get_listing_by_id(listing_id)
     if not listing:
         return jsonify({"error": "Listing not found"}), 404
+
 
     if listing.rooms_available <= 0:
         return jsonify({"error": "No rooms available"}), 400
