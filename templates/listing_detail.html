@@ -50,12 +50,6 @@
       height: 100%;
       object-fit: cover;
     }
-
-    .cert-image {
-      max-width: 300px;
-      border-radius: 10px;
-      margin-top: 10px;
-    }
   </style>
 </head>
 <body>
@@ -74,23 +68,7 @@
         <img src="{{ listing.image_path }}" class="listing-image" alt="Listing Image" />
       </div>
 
-      <p><strong>Price:</strong> {{ listing.price }}</p>
-      <p><strong>Location:</strong> {{ listing.location }}</p>
-      <p><strong>Rooms Available:</strong> {{ listing.rooms_available }}</p>
-      <p><strong>Room Details:</strong> {{ listing.room_details }}</p>
-
-      {% if listing.eco_cert_url %}
-        <div class="mt-3">
-          <p><strong>Eco Certification:</strong></p>
-          {% if listing.eco_cert_url.endswith('.pdf') %}
-            <a href="{{ listing.eco_cert_url }}" target="_blank" class="btn btn-outline-primary btn-sm">View PDF</a>
-          {% else %}
-            <img src="{{ listing.eco_cert_url }}" alt="Eco Certification" class="cert-image" />
-          {% endif %}
-        </div>
-      {% endif %}
-
-      <div class="d-flex gap-2 mt-4">
+      <div class="d-flex gap-2">
         <form method="POST" action="{{ url_for('admin.approve_listing_web', listing_id=listing.id) }}">
           <button type="submit" class="btn btn-approve">Approve</button>
         </form>
