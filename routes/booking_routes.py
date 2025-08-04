@@ -48,7 +48,7 @@ def create_booking():
     )
     booking.save()
 
-    listing.rooms_available -= 1
+    listing['rooms_available'] -= 1
     listing.save()
 
     return jsonify({"message": "Booking created successfully"}), 201
