@@ -8,6 +8,7 @@ booking_bp = Blueprint('booking', __name__)
 
 @booking_bp.route('/bookings', methods=['POST'])
 def create_booking():
+    print("👉 Received JSON:", request.get_json()) 
     data = request.get_json()
     if not data:
         return jsonify({"error": "Missing JSON data"}), 400
