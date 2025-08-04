@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.booking import Booking
 from datetime import datetime
+from dateutil import parser
 
 from models.listing import Listing
 
@@ -23,12 +24,12 @@ def create_booking():
 
     # Validate dates
     try:
-        check_in_date = datetime.strptime(check_in, '%Y-%m-%d')
-        check_out_date = datetime.strptime(check_out, '%Y-%m-%d')
+        check_in_date = parser.isoparse(check_in)
+        check_out_date = parser.isoparse(check_out)
         if check_out_date <= check_in_date:
             return jsonify({"error": "Check-out must be after check-in"}), 400
-    except ValueError:
-        return jsonify({"error": "Invalid date format. Use YYYY-MM-DD"}), 400
+    except Exception:
+        return jsonify({"error": "Invalid date format"}), 400
 
     # ✅ Check room availability
     listing = Listing.query.filter_by(id=listing_id).first()
