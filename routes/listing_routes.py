@@ -25,7 +25,7 @@ def upload_listing():
         description = request.form['description']
         price = request.form['price']
         location = request.form['location']
-        room_count = request.form['rooms_available']
+        room_count = request.form['rooms']
         room_details = request.form['room_details']
 
         image = request.files['image']
