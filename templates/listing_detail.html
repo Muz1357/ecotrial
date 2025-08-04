@@ -63,9 +63,18 @@
     <div class="card shadow p-4">
       <h5 class="card-title">{{ listing.title }}</h5>
       <p><strong>Description:</strong> {{ listing.description }}</p>
+      <p><strong>Price:</strong> {{ listing.price }}</p>
+      <p><strong>Location:</strong> {{ listing.location }}</p>
+      <p><strong>Avilable Rooms:</strong> {{ listing.rooms_avilable }}</p>
+      <p><strong>Room Details:</strong> {{ listing.room_details }}</p>
+
 
       <div class="listing-image-container">
         <img src="{{ listing.image_path }}" class="listing-image" alt="Listing Image" />
+      </div>
+
+      <div class="listing-image-container">
+        <img src="{{ listing.eco_cert_url }}" class="listing-certificate" alt="Listing Certificate" />
       </div>
 
       <div class="d-flex gap-2">
