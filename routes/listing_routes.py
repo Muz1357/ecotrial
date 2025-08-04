@@ -13,34 +13,62 @@ def get_listings():
     listings = Listing.get_approved_listings()
     return jsonify(listings), 200
 
+from flask import Blueprint, request, jsonify
+import cloudinary.uploader
+from models.listing import Listing
+
+listing_bp = Blueprint('listing_bp', __name__)
+
 @listing_bp.route('/upload-listing', methods=['POST'])
 def upload_listing():
     try:
-        print("Form Keys:", request.form.keys())
-        print("Form Data:", request.form.to_dict())
-        print("File Keys:", request.files.keys())
+        # Required form fields
+        user_id = request.form.get('user_id')
+        title = request.form.get('title')
+        description = request.form.get('description')
+        price = request.form.get('price')
+        location = request.form.get('location')
+        rooms_count = request.form.get('rooms')
+        room_details = request.form.get('room_details')
 
-        user_id = request.form['user_id']
-        title = request.form['title']
-        description = request.form['description']
-        price = request.form['price']
-        location = request.form['location']
-        room_count = request.form['rooms']
-        room_details = request.form['room_details']
+        # Required files
+        image_file = request.files.get('image')
+        cert_file = request.files.get('eco_cert')
 
-        image = request.files['image']
-        eco_cert = request.files['eco_cert']
+        if not all([user_id, title, description, price, location, rooms_count, room_details, image_file, cert_file]):
+            return jsonify({"error": "Missing required fields"}), 400
 
-        image_upload = cloudinary.uploader.upload(image)
+        # Upload to Cloudinary
+        image_upload = cloudinary.uploader.upload(image_file)
+        cert_upload = cloudinary.uploader.upload(cert_file)
+
         image_url = image_upload.get('secure_url')
+        cert_url = cert_upload.get('secure_url')
 
-        eco_cert_upload = cloudinary.uploader.upload(eco_cert)
-        eco_cert_url = eco_cert_upload.get('secure_url')
+        # Create and save listing
+        listing = Listing(
+            user_id=user_id,
+            title=title,
+            description=description,
+            price=price,
+            location=location,
+            image_url=image_url,
+            eco_cert_url=cert_url,
+            rooms_count=rooms_count,
+            room_details=room_details,
+            is_approved=False  # initially not approved
+        )
+        listing.save()
 
-        return jsonify({"message": "Listing uploaded successfully", "image_url": image_url, "cert_url": eco_cert_url}), 200
+        return jsonify({
+            "message": "Listing uploaded and saved successfully",
+            "image_url": image_url,
+            "eco_cert_url": cert_url
+        }), 200
+
     except Exception as e:
-        print("❌ Upload Error:", str(e))  # Print full error for debugging
-        return jsonify({"error": str(e)}), 400
+        print("❌ Upload Error:", str(e))
+        return jsonify({"error": str(e)}), 500
 
 
 @listing_bp.route('/listings/<int:listing_id>', methods=['GET'])
