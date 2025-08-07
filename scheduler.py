@@ -12,7 +12,7 @@ def auto_release_rooms():
     # Get bookings that are NOT cancelled and have check_out < now
     cursor.execute("""
         SELECT * FROM booking 
-        WHERE is_cancelled = FALSE AND check_out < %s AND is_completed = FALSE
+        WHERE is_cancelled = FALSE AND check_out < %s 
     """, (now,))
     expired_bookings = cursor.fetchall()
 
