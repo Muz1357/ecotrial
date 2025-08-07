@@ -127,7 +127,7 @@ def get_user_bookings(tourist_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-        SELECT b.id, l.title, b.check_in, b.check_out, b.is_cancelled, b.booking_time
+        SELECT b.id, l.title, b.check_in, b.check_out, b.is_cancelled, b.created_at
         FROM booking b
         JOIN listing l ON b.listing_id = l.id
         WHERE b.tourist_id = %s
