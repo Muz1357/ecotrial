@@ -14,7 +14,7 @@ class Booking:
     def save(self):
         with get_connection() as conn:
             with conn.cursor() as cursor:
-                colombo_time = datetime.now(pytz.timezone('Asia/Colombo'))
+                colombo_time = datetime.now(pytz.utc)
 
                 cursor.execute("""
                     INSERT INTO booking (listing_id, tourist_id, check_in, check_out, created_at)
