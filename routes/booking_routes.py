@@ -85,16 +85,23 @@ def cancel_booking(booking_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
 
-    # Fetch booking
+    # ⏳ Fetch booking and validate cancellation window
     cursor.execute("SELECT * FROM booking WHERE id = %s AND is_cancelled = FALSE", (booking_id,))
     booking = cursor.fetchone()
+
     if not booking:
         return jsonify({"error": "Booking not found or already cancelled"}), 404
 
-    # Update booking to cancelled
+    booking_time = booking['booking_time']  
+    now = datetime.now()
+
+    
+    if (now - booking_time).total_seconds() > 3 * 3600:
+        return jsonify({"error": "Cancellation window expired (3 hours)."}), 403
+
+    
     cursor.execute("UPDATE booking SET is_cancelled = TRUE WHERE id = %s", (booking_id,))
 
-    # Decrease room availability per date
     check_in = booking['check_in']
     check_out = booking['check_out']
     listing_id = booking['listing_id']
@@ -114,12 +121,13 @@ def cancel_booking(booking_id):
 
     return jsonify({"message": "Booking cancelled successfully"}), 200
 
+
 @booking_bp.route('/bookings/<int:tourist_id>', methods=['GET'])
 def get_user_bookings(tourist_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     cursor.execute("""
-        SELECT b.id, l.title, b.check_in, b.check_out, b.is_cancelled
+        SELECT b.id, l.title, b.check_in, b.check_out, b.is_cancelled, b.booking_time
         FROM booking b
         JOIN listing l ON b.listing_id = l.id
         WHERE b.tourist_id = %s
