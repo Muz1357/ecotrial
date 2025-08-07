@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from models.booking import Booking
 from models.listing import Listing
 from datetime import datetime, timedelta
+from pytz import timezone
 from dateutil import parser
 from models.db import get_connection
 
@@ -136,4 +137,9 @@ def get_user_bookings(tourist_id):
     bookings = cursor.fetchall()
     cursor.close()
     conn.close()
+
+    for booking in bookings:
+        if isinstance(booking["created_at"], datetime):
+            booking["created_at"] = booking["created_at"].astimezone(timezone("UTC")).isoformat()
+
     return jsonify(bookings)
