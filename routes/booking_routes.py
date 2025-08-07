@@ -92,7 +92,7 @@ def cancel_booking(booking_id):
     if not booking:
         return jsonify({"error": "Booking not found or already cancelled"}), 404
 
-    booking_time = booking['booking_time']  
+    booking_time = booking['created_at']  
     now = datetime.now()
 
     
