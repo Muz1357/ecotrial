@@ -1,6 +1,6 @@
 from models.db import get_connection
 from datetime import datetime
-
+import pytz
 
 class Booking:
     def __init__(self, id=None, listing_id=None, tourist_id=None, check_in=None, check_out=None, created_at=None):
@@ -14,8 +14,10 @@ class Booking:
     def save(self):
         with get_connection() as conn:
             with conn.cursor() as cursor:
+                colombo_time = datetime.now(pytz.timezone('Asia/Colombo'))
+
                 cursor.execute("""
                     INSERT INTO booking (listing_id, tourist_id, check_in, check_out, created_at)
                     VALUES (%s, %s, %s, %s, %s)
-                """, (self.listing_id, self.tourist_id, self.check_in, self.check_out, self.created_at))
+                """, (self.listing_id, self.tourist_id, self.check_in, self.check_out, colombo_time))
             conn.commit()

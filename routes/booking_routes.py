@@ -61,7 +61,6 @@ def create_booking():
         tourist_id=tourist_id,
         check_in=check_in_date,
         check_out=check_out_date,
-        created_at = datetime.now
     )
     booking.save()
 
