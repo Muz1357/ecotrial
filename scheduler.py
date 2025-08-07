@@ -1,6 +1,6 @@
 # scheduler.py
 from apscheduler.schedulers.background import BackgroundScheduler
-from datetime import datetime
+from datetime import datetime, timedelta
 from models.db import get_connection
 
 def auto_release_rooms():
