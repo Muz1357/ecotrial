@@ -12,7 +12,7 @@ def get_eco_balance(user_id):
     result = cursor.fetchone()
     cursor.close()
     conn.close()
-    return jsonify({"balance": result["points_balance"] if result else 0})
+    return jsonify({"balance": result["eco_points"] if result else 0})
 
 @eco_bp.route('/carbon_summary/<int:user_id>', methods=['GET'])
 def get_carbon_summary(user_id):
@@ -22,7 +22,7 @@ def get_carbon_summary(user_id):
         SELECT 
             IFNULL(SUM(co2_kg), 0) AS total_co2_emitted,
             IFNULL(SUM(points_awarded), 0) AS total_points_awarded
-        FROM your_table_name  -- replace with your actual table name
+        FROM travel_logs 
         WHERE tourist_id = %s
     """, (user_id,))
     result = cursor.fetchone()
