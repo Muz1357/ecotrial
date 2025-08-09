@@ -16,6 +16,38 @@ def get_eco_balance(user_id):
     balance = result["eco_points"] if result and result["eco_points"] is not None else 0
     return jsonify({"balance": balance})
 
+@eco_bp.route('/tourists/<int:tourist_id>/co2-summary', methods=['GET'])
+def get_co2_summary(tourist_id):
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    # Calculate total emitted
+    cursor.execute("""
+        SELECT 
+            SUM(CASE 
+                    WHEN mode IN ('Walking', 'Cycling') THEN 0 
+                    ELSE co2_kg 
+                END
+            ) AS co2_emitted,
+            SUM(CASE 
+                    WHEN mode IN ('Walking', 'Cycling') THEN co2_kg 
+                    ELSE 0 
+                END
+            ) AS co2_saved,
+            SUM(points_awarded) AS total_points
+        FROM travel_logs
+        WHERE tourist_id = %s
+    """, (tourist_id,))
+
+    result = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    return jsonify({
+        "co2_emitted": float(result["co2_emitted"] or 0),
+        "co2_saved": float(result["co2_saved"] or 0),
+        "total_points": int(result["total_points"] or 0)
+    })
 
 @eco_bp.route('/carbon_summary/<int:user_id>', methods=['GET'])
 def get_carbon_summary(user_id):
