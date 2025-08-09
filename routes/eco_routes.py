@@ -8,7 +8,7 @@ eco_bp = Blueprint('eco', __name__)
 def get_eco_balance(user_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT eco_points FROM users WHERE user_id = %s", (user_id,))
+    cursor.execute("SELECT eco_points FROM user_account WHERE user_id = %s", (user_id,))
     result = cursor.fetchone()
     cursor.close()
     conn.close()
