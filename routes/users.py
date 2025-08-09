@@ -22,11 +22,11 @@ def update_user(user_id):
         cursor = conn.cursor()
 
         if username:
-            cursor.execute("UPDATE users SET username=%s WHERE id=%s", (username, user_id))
+            cursor.execute("UPDATE user_account SET username=%s WHERE id=%s", (username, user_id))
 
         if password:
             hashed_pw = generate_password_hash(password)
-            cursor.execute("UPDATE users SET password=%s WHERE id=%s", (hashed_pw, user_id))
+            cursor.execute("UPDATE user_account SET password=%s WHERE id=%s", (hashed_pw, user_id))
 
         conn.commit()
         cursor.close()
@@ -45,7 +45,7 @@ def delete_user(user_id):
         conn = get_connection()
         cursor = conn.cursor()
 
-        cursor.execute("DELETE FROM users WHERE id=%s", (user_id,))
+        cursor.execute("DELETE FROM user_account WHERE id=%s", (user_id,))
         conn.commit()
         cursor.close()
         conn.close()
