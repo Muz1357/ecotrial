@@ -11,18 +11,18 @@ def update_user(user_id):
     if not data:
         return jsonify({"error": "Missing JSON data"}), 400
 
-    username = data.get('username')
+    name = data.get('name')
     password = data.get('password')
 
-    if not username and not password:
+    if not name and not password:
         return jsonify({"error": "No fields to update"}), 400
 
     try:
         conn = get_connection()
         cursor = conn.cursor()
 
-        if username:
-            cursor.execute("UPDATE user_account SET username=%s WHERE id=%s", (username, user_id))
+        if name:
+            cursor.execute("UPDATE user_account SET name=%s WHERE id=%s", (name, user_id))
 
         if password:
             hashed_pw = generate_password_hash(password)
