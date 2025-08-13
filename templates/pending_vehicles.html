@@ -80,7 +80,7 @@
         {% endif %}
       </div>
 
-      <form method="POST" action="{{ url_for('admin.review_vehicle', vehicle_id=vehicle.id) }}">
+      <form method="POST" action="{{ url_for('vehicle.review_vehicle', vehicle_id=vehicle.id) }}">
         <div class="mb-3">
           <label for="vehicleType" class="form-label">Vehicle Type (if approving):</label>
           <select class="form-select" id="vehicleType" name="vehicle_type">

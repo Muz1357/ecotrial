@@ -82,7 +82,7 @@
                 <img src="{{ vehicle.proof_path }}" class="vehicle-image" alt="Registration Proof">
                 {% endif %}
               </div>
-              <a href="{{ url_for('admin.vehicle_detail', vehicle_id=vehicle.id) }}" class="btn btn-primary btn-sm mt-2">Review Vehicle</a>
+              <a href="{{ url_for('vehicle.vehicle_detail', vehicle_id=vehicle.id) }}" class="btn btn-primary btn-sm mt-2">Review Vehicle</a>
             </div>
           </div>
           {% endfor %}
