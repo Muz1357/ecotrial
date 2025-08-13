@@ -1,6 +1,8 @@
 from models.db import get_connection
 from datetime import datetime
 
+from datetime import datetime
+
 class Trip:
     def __init__(self, id, tourist_id, start_location, end_location, start_date, end_date, total_distance=0, total_co2=0, created_at=None):
         self.id = id
@@ -14,13 +16,15 @@ class Trip:
         self.created_at = created_at or datetime.utcnow()
 
     @staticmethod
-    def create(tourist_id, start_location, end_location, start_date, end_date):
+    def create(tourist_id, start_location, end_location, start_date, end_date, total_distance=0, total_co2=0):
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO trip (tourist_id, start_location, end_location, start_date, end_date, total_distance, total_co2, created_at)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (tourist_id, start_location, end_location, start_date, end_date, datetime.utcnow()))
+            INSERT INTO trip (tourist_id, start_location, end_location, 
+                             start_date, end_date, total_distance, total_co2, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (tourist_id, start_location, end_location, start_date, end_date, 
+              total_distance, total_co2, datetime.utcnow()))
         trip_id = cursor.lastrowid
         conn.commit()
         cursor.close()
