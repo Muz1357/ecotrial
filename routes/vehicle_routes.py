@@ -114,10 +114,9 @@ def get_vehicle_by_id(vehicle_id):
 
 # Routes
 @vehicle_bp.route('/vehicles', methods=['POST'])
-@login_required
 def register_vehicle():
     user = request.current_user
-    if user.role != 'owner':
+    if user.role != 'vehicle_owner':
         return jsonify({"error": "Only owners can register vehicles"}), 403
 
     data = request.form
@@ -132,34 +131,34 @@ def register_vehicle():
         )
         proof_url = result.get('secure_url')
 
+    # Owner does NOT set price or points here
     vehicle = Vehicle(
         owner_id=user.id,
         model_name=data.get('model_name'),
         plate_number=data.get('plate_number'),
-        rate_per_km=float(data.get('rate_per_km', 0)),
-        points_per_km=int(data.get('points_per_km', 0)),
+        rate_per_km=None,
+        points_per_km=None,
         proof_path=proof_url,
-        approval_status='pending'
+        approval_status='pending',
+        vehicle_type=None  # To be set by admin
     )
 
     save_vehicle_to_db(vehicle)
     return jsonify({
-        "message": "Vehicle submitted for approval",
+        "message": "Vehicle submitted for admin approval",
         "vehicle": vehicle.to_dict()
     }), 201
 
 @vehicle_bp.route('/owner/vehicles', methods=['GET'])
-@login_required
 def owner_vehicles():
     user = request.current_user
-    if user.role != 'owner':
+    if user.role != 'vehicle_owner':
         return jsonify([]), 200
 
     vehicles = get_vehicles_by_owner(user.id)
     return jsonify([v.to_dict() for v in vehicles]), 200
 
 @vehicle_bp.route('/admin/vehicles/pending', methods=['GET'])
-@login_required
 def admin_pending_vehicles():
     if request.current_user.role != 'admin':
         return jsonify({"error": "Only admin"}), 403
@@ -178,7 +177,6 @@ def admin_pending_vehicles():
     return jsonify(result), 200
 
 @vehicle_bp.route('/admin/vehicles/<int:vehicle_id>/review', methods=['POST'])
-@login_required
 def admin_review_vehicle(vehicle_id):
     if request.current_user.role != 'admin':
         return jsonify({"error": "Only admin"}), 403
