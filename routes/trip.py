@@ -13,17 +13,25 @@ def create_trip():
     travel_dates = data['travel_dates']
     stops = data.get('stops', [])
 
+    import json
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO trips (tourist_id, start_location, end_location, travel_dates, stops)
         VALUES (%s, %s, %s, %s, %s)
-    """, (tourist_id, start_location, end_location, str(travel_dates), str(stops)))
+    """, (
+        tourist_id,
+        start_location,
+        end_location,
+        json.dumps(travel_dates),  # <-- Fix here
+        json.dumps(stops)          # <-- Fix here
+    ))
     conn.commit()
     trip_id = cursor.lastrowid
     cursor.close()
     conn.close()
     return jsonify({"status": "success", "trip_id": trip_id})
+
 
 @trip_bp.route('/<int:trip_id>/legs', methods=['POST'])
 def add_trip_leg(trip_id):
