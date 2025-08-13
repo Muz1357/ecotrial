@@ -63,6 +63,34 @@
         <p class="text-muted">No pending listings.</p>
       {% endif %}
     </div>
+
+    <!-- Pending Vehicles -->
+    <div>
+      <h5 class="text-dark mb-3">Pending Vehicle Approvals</h5>
+      {% if pending_vehicles %}
+        <div class="row">
+          {% for vehicle in pending_vehicles %}
+          <div class="col-md-6 mb-3">
+            <div class="card p-3 shadow-sm">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <h6 class="card-title">{{ vehicle.model_name }}</h6>
+                  <p class="mb-1"><strong>Plate:</strong> {{ vehicle.plate_number }}</p>
+                  <p class="mb-1"><strong>Owner:</strong> {{ vehicle.owner_name }}</p>
+                </div>
+                {% if vehicle.proof_path %}
+                <img src="{{ vehicle.proof_path }}" class="vehicle-image" alt="Registration Proof">
+                {% endif %}
+              </div>
+              <a href="{{ url_for('admin.vehicle_detail', vehicle_id=vehicle.id) }}" class="btn btn-primary btn-sm mt-2">Review Vehicle</a>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted">No pending vehicle approvals.</p>
+      {% endif %}
+    </div>
   </div>
 
 </body>

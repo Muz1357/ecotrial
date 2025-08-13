@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vehicle Details</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      background: linear-gradient(to bottom right, #6BC6E4 40%, #ffffff 40%);
+      min-height: 100vh;
+      padding-top: 70px;
+    }
+
+    .app-bar {
+      background-color: #007B9E;
+      color: white;
+      padding: 1rem 2rem;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+    }
+
+    .card {
+      border-radius: 20px;
+      max-width: 700px;
+    }
+
+    .btn-approve {
+      background-color: #28a745;
+      color: white;
+    }
+
+    .btn-decline {
+      background-color: #dc3545;
+      color: white;
+    }
+
+    .vehicle-image-container {
+      width: 100%;
+      max-height: 400px;
+      overflow: hidden;
+      border-radius: 15px;
+      margin-bottom: 1rem;
+    }
+
+    .vehicle-image {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .form-select {
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-bar d-flex justify-content-between align-items-center">
+    <h4 class="mb-0">Vehicle Review</h4>
+    <a href="{{ url_for('admin.vehicles_dashboard') }}" class="btn btn-light btn-sm">Back</a>
+  </div>
+
+  <div class="container mt-4">
+    <div class="card shadow p-4 mx-auto">
+      <h5 class="card-title">{{ vehicle.model_name }}</h5>
+      <p><strong>Plate Number:</strong> {{ vehicle.plate_number }}</p>
+      <p><strong>Owner:</strong> {{ vehicle.owner_name }}</p>
+      <p><strong>Rate per km:</strong> Rs. {{ vehicle.rate_per_km }}</p>
+      <p><strong>Points per km:</strong> {{ vehicle.points_per_km }}</p>
+
+      <div class="vehicle-image-container mb-4">
+        <h6>Registration Proof:</h6>
+        {% if vehicle.proof_path %}
+          <img src="{{ vehicle.proof_path }}" class="vehicle-image" alt="Registration Proof" />
+        {% else %}
+          <p class="text-danger">No proof document uploaded</p>
+        {% endif %}
+      </div>
+
+      <form method="POST" action="{{ url_for('admin.review_vehicle', vehicle_id=vehicle.id) }}">
+        <div class="mb-3">
+          <label for="vehicleType" class="form-label">Vehicle Type (if approving):</label>
+          <select class="form-select" id="vehicleType" name="vehicle_type">
+            <option value="">Select type...</option>
+            <option value="EV">Electric Vehicle (EV)</option>
+            <option value="Hybrid">Hybrid Vehicle</option>
+            <option value="Normal">Normal Vehicle</option>
+          </select>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" name="action" value="approve" class="btn btn-approve flex-grow-1">
+            Approve
+          </button>
+          <button type="submit" name="action" value="reject" class="btn btn-decline flex-grow-1">
+            Reject
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</body>
+</html>
