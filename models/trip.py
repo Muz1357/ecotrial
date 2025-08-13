@@ -18,7 +18,7 @@ class Trip:
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO trips (tourist_id, start_location, end_location, start_date, end_date, total_distance, total_co2, created_at)
+            INSERT INTO trip (tourist_id, start_location, end_location, start_date, end_date, total_distance, total_co2, created_at)
             VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
         """, (tourist_id, start_location, end_location, start_date, end_date, total_distance, total_co2, datetime.utcnow()))
         trip_id = cursor.lastrowid
