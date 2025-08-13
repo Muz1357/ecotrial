@@ -4,7 +4,7 @@ from utils.co2_calculator import calculate_co2
 
 trip_bp = Blueprint('trip', __name__)
 
-@trip_bp.route('/', methods=['POST'])
+@trip_bp.route('/trips', methods=['POST'])
 def create_trip():
     data = request.json
     tourist_id = data['tourist_id']
@@ -46,7 +46,7 @@ def add_trip_leg(trip_id):
     conn.close()
     return jsonify({"status": "success", "co2_kg": co2})
 
-@trip_bp.route('/<int:tourist_id>', methods=['GET'])
+@trip_bp.route('/trips/<int:tourist_id>', methods=['GET'])
 def get_trips(tourist_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
