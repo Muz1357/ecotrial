@@ -65,33 +65,134 @@
     </div>
 
     <!-- Pending Vehicles -->
-    <div>
-      <h5 class="text-dark mb-3">Pending Vehicle Approvals</h5>
-      {% if pending_vehicles %}
-        <div class="row">
-          {% for vehicle in pending_vehicles %}
-          <div class="col-md-6 mb-3">
-            <div class="card p-3 shadow-sm">
-              <div class="d-flex justify-content-between">
-                <div>
-                  <h6 class="card-title">{{ vehicle.model_name }}</h6>
-                  <p class="mb-1"><strong>Plate:</strong> {{ vehicle.plate_number }}</p>
-                  <p class="mb-1"><strong>Owner:</strong> {{ vehicle.owner_name }}</p>
-                </div>
-                {% if vehicle.proof_path %}
-                <img src="{{ vehicle.proof_path }}" class="vehicle-image" alt="Registration Proof">
-                {% endif %}
-              </div>
-              <a href="{{ url_for('vehicle.vehicle_detail', vehicle_id=vehicle.id) }}" class="btn btn-primary btn-sm mt-2">Review Vehicle</a>
-            </div>
-          </div>
-          {% endfor %}
+    {% extends 'admin/base.html' %}
+
+    {% block content %}
+    <div class="container mt-4">
+        <h2>Pending Vehicle Registrations</h2>
+        
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>User</th>
+                        <th>Model</th>
+                        <th>Plate</th>
+                        <th>Type</th>
+                        <th>Proof</th>
+                        <th>Submitted</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for vehicle in vehicles %}
+                    <tr>
+                        <td>{{ vehicle.user_name }}<br><small>{{ vehicle.user_email }}</small></td>
+                        <td>{{ vehicle.model_name }}</td>
+                        <td>{{ vehicle.plate_number }}</td>
+                        <td>{{ vehicle.vehicle_type }}</td>
+                        <td>
+                            {% if vehicle.proof_url %}
+                            <a href="{{ vehicle.proof_url }}" target="_blank" class="btn btn-sm btn-info">
+                                View Proof
+                            </a>
+                            {% else %}
+                            No proof
+                            {% endif %}
+                        </td>
+                        <td>{{ vehicle.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-success approve-btn" data-id="{{ vehicle.id }}">
+                                    Approve
+                                </button>
+                                <button class="btn btn-sm btn-danger reject-btn" data-id="{{ vehicle.id }}">
+                                    Reject
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">No pending vehicle registrations</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
-      {% else %}
-        <p class="text-muted">No pending vehicle approvals.</p>
-      {% endif %}
     </div>
-  </div>
+
+    <!-- Approval Modal -->
+    <div class="modal fade" id="approvalModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Approve Vehicle</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="approvalForm">
+                        <input type="hidden" name="vehicle_id" id="modalVehicleId">
+                        <div class="mb-3">
+                            <label for="approvalNotes" class="form-label">Notes (Optional)</label>
+                            <textarea class="form-control" id="approvalNotes" name="notes" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="confirmApprove">Confirm Approval</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    $(document).ready(function() {
+        let currentAction = '';
+        let currentVehicleId = '';
+        
+        $('.approve-btn').click(function() {
+            currentAction = 'approve';
+            currentVehicleId = $(this).data('id');
+            $('#modalVehicleId').val(currentVehicleId);
+            $('#approvalModal .modal-title').text('Approve Vehicle');
+            $('#confirmApprove').text('Confirm Approval').removeClass('btn-danger').addClass('btn-primary');
+            $('#approvalModal').modal('show');
+        });
+        
+        $('.reject-btn').click(function() {
+            currentAction = 'reject';
+            currentVehicleId = $(this).data('id');
+            $('#modalVehicleId').val(currentVehicleId);
+            $('#approvalModal .modal-title').text('Reject Vehicle');
+            $('#confirmApprove').text('Confirm Rejection').removeClass('btn-primary').addClass('btn-danger');
+            $('#approvalModal').modal('show');
+        });
+        
+        $('#confirmApprove').click(function() {
+            const notes = $('#approvalNotes').val();
+            const url = currentAction === 'approve' 
+                ? `/admin/vehicles/${currentVehicleId}/approve` 
+                : `/admin/vehicles/${currentVehicleId}/reject`;
+                
+            $.ajax({
+                url: url,
+                method: 'POST',
+                data: {
+                    notes: notes
+                },
+                success: function(response) {
+                    location.reload();
+                },
+                error: function(xhr) {
+                    alert('Error: ' + xhr.responseJSON.error);
+                }
+            });
+        });
+    });
+    </script>
+    {% endblock %}
 
 </body>
 </html>
