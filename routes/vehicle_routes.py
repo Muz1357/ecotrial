@@ -1,67 +1,59 @@
 from flask import Blueprint, request, jsonify
 from models.vehicle import Vehicle
-import os
-import cloudinary.uploader
 
 vehicle_bp = Blueprint('vehicle', __name__)
 
-# Submit vehicle (User)
+# Tourist submits vehicle registration
 @vehicle_bp.route('/vehicles', methods=['POST'])
-def submit_vehicle():
-    try:
-        user_id = request.form.get('user_id')
-        model_name = request.form.get('model_name')
-        plate_number = request.form.get('plate_number')
-        vehicle_type = request.form.get('vehicle_type')
+def register_vehicle():
+    data = request.json
+    required = ['user_id', 'registration_number', 'brand', 'model', 'year']
+    if not all(k in data for k in required):
+        return jsonify({'error': 'Missing required fields'}), 400
 
-        proof_file = None
-        if 'proof_file' in request.files:
-            upload_result = cloudinary.uploader.upload(
-                request.files['proof_file'],
-                folder="vehicle_proofs"
-            )
-            proof_file = upload_result['secure_url']
-
-        Vehicle.create(user_id, model_name, plate_number, vehicle_type, proof_file)
-        return jsonify({"message": "Vehicle submitted for admin review"}), 201
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    vehicle_id = Vehicle.create(
+        data['user_id'],
+        data['registration_number'],
+        data['brand'],
+        data['model'],
+        data['year']
+    )
+    return jsonify({'message': 'Vehicle submitted for review', 'vehicle_id': vehicle_id}), 201
 
 
-# Get pending vehicles (Admin)
+# Admin - View pending vehicles
 @vehicle_bp.route('/vehicles/pending', methods=['GET'])
 def get_pending_vehicles():
-    try:
-        vehicles = Vehicle.get_all_pending()
-        return jsonify(vehicles), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    vehicles = Vehicle.get_pending()
+    return jsonify(vehicles), 200
 
 
-# Approve vehicle (Admin)
+# Admin - Approve vehicle and set type
 @vehicle_bp.route('/vehicles/<int:vehicle_id>/approve', methods=['PUT'])
 def approve_vehicle(vehicle_id):
-    try:
-        data = request.get_json()
-        eco_category = data.get('eco_category')
-        price_per_km = data.get('price_per_km')
-        eco_points_per_km = data.get('eco_points_per_km')
+    data = request.json
+    if 'vehicle_type' not in data:
+        return jsonify({'error': 'Vehicle type is required'}), 400
+    if data['vehicle_type'] not in ['EV', 'Hybrid', 'Normal']:
+        return jsonify({'error': 'Invalid vehicle type'}), 400
 
-        Vehicle.approve(vehicle_id, eco_category, price_per_km, eco_points_per_km)
-        return jsonify({"message": "Vehicle approved successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    Vehicle.approve(vehicle_id, data['vehicle_type'])
+    return jsonify({'message': 'Vehicle approved'}), 200
 
 
-# Update price and points (Admin)
-@vehicle_bp.route('/vehicles/<int:vehicle_id>/pricing', methods=['PUT'])
-def update_pricing(vehicle_id):
-    try:
-        data = request.get_json()
-        price_per_km = data.get('price_per_km')
-        eco_points_per_km = data.get('eco_points_per_km')
+# Admin - Update pricing for a vehicle type
+@vehicle_bp.route('/vehicles/<vehicle_type>/pricing', methods=['PUT'])
+def update_vehicle_pricing(vehicle_type):
+    data = request.json
+    if not all(k in data for k in ['price_per_km', 'eco_points_per_km']):
+        return jsonify({'error': 'Missing pricing fields'}), 400
 
-        Vehicle.update_pricing(vehicle_id, price_per_km, eco_points_per_km)
-        return jsonify({"message": "Pricing updated successfully"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    Vehicle.update_pricing(vehicle_type, data['price_per_km'], data['eco_points_per_km'])
+    return jsonify({'message': 'Pricing updated'}), 200
+
+
+# Get all vehicle pricing
+@vehicle_bp.route('/pricing', methods=['GET'])
+def get_vehicle_pricing():
+    pricing = Vehicle.get_pricing()
+    return jsonify(pricing), 200

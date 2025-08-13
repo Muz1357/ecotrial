@@ -1,62 +1,62 @@
 from models.db import get_connection
+from datetime import datetime
 
 class Vehicle:
     @staticmethod
-    def create(user_id, model_name, plate_number, vehicle_type, proof_file):
+    def create(user_id, registration_number, brand, model, year):
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO vehicle (user_id, model_name, plate_number, vehicle_type, proof_file)
-            VALUES (%s, %s, %s, %s, %s)
-        """, (user_id, model_name, plate_number, vehicle_type, proof_file))
+        query = """
+            INSERT INTO vehicles (user_id, registration_number, brand, model, year, status, created_at)
+            VALUES (%s, %s, %s, %s, %s, 'pending', %s)
+        """
+        cursor.execute(query, (user_id, registration_number, brand, model, year, datetime.now()))
         conn.commit()
         cursor.close()
         conn.close()
-        return True
+        return cursor.lastrowid
 
     @staticmethod
-    def get_all_pending():
+    def get_pending():
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT v.*, u.name AS owner_name, u.email AS owner_email
-            FROM vehicle v
-            JOIN user_account u ON v.user_id = u.id
-            WHERE v.status = 'pending'
-        """)
-        result = cursor.fetchall()
+        cursor.execute("SELECT * FROM vehicles WHERE status = 'pending'")
+        rows = cursor.fetchall()
         cursor.close()
         conn.close()
-        return result
+        return rows
 
     @staticmethod
-    def approve(vehicle_id, eco_category, price_per_km, eco_points_per_km):
+    def approve(vehicle_id, vehicle_type):
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE vehicle
-            SET status = 'approved',
-                eco_category = %s,
-                price_per_km = %s,
-                eco_points_per_km = %s
-            WHERE id = %s
-        """, (eco_category, price_per_km, eco_points_per_km, vehicle_id))
+        query = "UPDATE vehicles SET status='approved', vehicle_type=%s WHERE id=%s"
+        cursor.execute(query, (vehicle_type, vehicle_id))
         conn.commit()
         cursor.close()
         conn.close()
-        return True
 
     @staticmethod
-    def update_pricing(vehicle_id, price_per_km, eco_points_per_km):
+    def update_pricing(vehicle_type, price_per_km, eco_points_per_km):
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE vehicle
-            SET price_per_km = %s,
-                eco_points_per_km = %s
-            WHERE id = %s
-        """, (price_per_km, eco_points_per_km, vehicle_id))
+        # If type exists, update; else insert
+        query = """
+            INSERT INTO vehicle_pricing (vehicle_type, price_per_km, eco_points_per_km)
+            VALUES (%s, %s, %s)
+            ON DUPLICATE KEY UPDATE price_per_km=%s, eco_points_per_km=%s
+        """
+        cursor.execute(query, (vehicle_type, price_per_km, eco_points_per_km, price_per_km, eco_points_per_km))
         conn.commit()
         cursor.close()
         conn.close()
-        return True
+
+    @staticmethod
+    def get_pricing():
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT * FROM vehicle_pricing")
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return rows
