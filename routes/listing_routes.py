@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 import cloudinary.uploader
+from models.db import get_connection
 from models.listing import Listing
 from config import ALLOWED_EXTENSIONS
 
