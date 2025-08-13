@@ -72,3 +72,28 @@ def get_listing_by_id(listing_id):
         return jsonify(listing), 200
     else:
         return jsonify({"error": "Listing not found"}), 404
+
+@listing_bp.route('/nearby', methods=['POST'])
+def get_hotels_near_route():
+    data = request.json
+    route_points = data.get("route", [])  # List of coordinates [{lat, lng}, ...]
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM listing WHERE approved=1")
+    listings = cursor.fetchall()
+    nearby_hotels = []
+
+    # Simple distance filter (replace with real geospatial logic)
+    for hotel in listings:
+        hotel_lat = float(hotel['latitude'])
+        hotel_lng = float(hotel['longitude'])
+        for point in route_points:
+            # Distance check: if within ~10 km of any route point
+            dist = ((hotel_lat - point['lat'])**2 + (hotel_lng - point['lng'])**2)**0.5
+            if dist < 0.1:  # approx ~10 km
+                nearby_hotels.append(hotel)
+                break
+    cursor.close()
+    conn.close()
+    return jsonify(nearby_hotels)
