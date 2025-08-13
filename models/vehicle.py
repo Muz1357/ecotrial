@@ -1,50 +1,62 @@
-# models/vehicle.py
-from datetime import datetime
 from models.db import get_connection
 
 class Vehicle:
-    def __init__(self, id=None, owner_id=None, model_name=None, plate_number=None, 
-                 rate_per_km=0, points_per_km=0, proof_path=None, vehicle_type=None,
-                 approval_status='pending', created_at=None, updated_at=None):
-        self.id = id
-        self.owner_id = owner_id
-        self.model_name = model_name
-        self.plate_number = plate_number
-        self.rate_per_km = rate_per_km
-        self.points_per_km = points_per_km
-        self.proof_path = proof_path
-        self.vehicle_type = vehicle_type
-        self.approval_status = approval_status
-        self.created_at = created_at if created_at else datetime.utcnow()
-        self.updated_at = updated_at if updated_at else datetime.utcnow()
+    @staticmethod
+    def create(user_id, model_name, plate_number, vehicle_type, proof_file):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO vehicle (user_id, model_name, plate_number, vehicle_type, proof_file)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (user_id, model_name, plate_number, vehicle_type, proof_file))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
 
     @staticmethod
-    def from_dict(data):
-        return Vehicle(
-            id=data.get('id'),
-            owner_id=data.get('owner_id'),
-            model_name=data.get('model_name'),
-            plate_number=data.get('plate_number'),
-            rate_per_km=data.get('rate_per_km', 0),
-            points_per_km=data.get('points_per_km', 0),
-            proof_path=data.get('proof_path'),
-            vehicle_type=data.get('vehicle_type'),
-            approval_status=data.get('approval_status', 'pending'),
-            created_at=data.get('created_at'),
-            updated_at=data.get('updated_at')
-        )
+    def get_all_pending():
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT v.*, u.name AS owner_name, u.email AS owner_email
+            FROM vehicle v
+            JOIN user_account u ON v.user_id = u.id
+            WHERE v.status = 'pending'
+        """)
+        result = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return result
 
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'owner_id': self.owner_id,
-            'model_name': self.model_name,
-            'plate_number': self.plate_number,
-            'rate_per_km': float(self.rate_per_km) if self.rate_per_km else 0.0,
-            'points_per_km': self.points_per_km,
-            'proof_path': self.proof_path,
-            'vehicle_type': self.vehicle_type,
-            'approval_status': self.approval_status,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
-        }
+    @staticmethod
+    def approve(vehicle_id, eco_category, price_per_km, eco_points_per_km):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE vehicle
+            SET status = 'approved',
+                eco_category = %s,
+                price_per_km = %s,
+                eco_points_per_km = %s
+            WHERE id = %s
+        """, (eco_category, price_per_km, eco_points_per_km, vehicle_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
+
+    @staticmethod
+    def update_pricing(vehicle_id, price_per_km, eco_points_per_km):
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE vehicle
+            SET price_per_km = %s,
+                eco_points_per_km = %s
+            WHERE id = %s
+        """, (price_per_km, eco_points_per_km, vehicle_id))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return True
