@@ -136,13 +136,10 @@ def upload_listing():
             is_approved=False
         )
         
-        listing_id = listing.save()
-        if not listing_id:
-            raise Exception("Failed to save listing to database")
+        listing.save()
 
         return jsonify({
             "message": "Listing uploaded successfully",
-            "listing_id": listing_id,
             "location_details": {
                 "original_input": required_fields['location'],
                 "formatted_address": geo_data.get('formatted_address'),
