@@ -99,7 +99,8 @@ def upload_listing():
             }), 400
 
         # Geocode the location using Google Maps
-        geo_data = geocode_location(required_fields['location'])
+        search_query = f"{required_fields['title']}, {required_fields['location']}"
+        geo_data = geocode_location(search_query)
         if not geo_data:
             return jsonify({
                 "error": "Could not determine location coordinates",
@@ -125,7 +126,7 @@ def upload_listing():
             title=required_fields['title'],
             description=required_fields['description'],
             price=required_fields['price'],
-            location=geo_data.get('formatted_address', required_fields['location']),
+            location=geo_data.get('formatted_address', search_query),
             latitude=geo_data['latitude'],
             longitude=geo_data['longitude'],
             image_url=image_url,
