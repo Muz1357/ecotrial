@@ -2,7 +2,6 @@ from flask import Blueprint, request, jsonify
 from models.booking import Booking
 from models.listing import Listing
 from models.eco_points import EcoPoints
-from models.travel_log import TravelLog
 from datetime import datetime, timedelta
 from pytz import timezone
 from dateutil import parser
@@ -262,65 +261,6 @@ def get_user_bookings(tourist_id):
             booking["created_at"] = booking["created_at"].astimezone(timezone("UTC")).isoformat()
 
     return jsonify(bookings)
-
-
-# -------------------------
-# Travel log endpoint: frontend should send a summary (or pre-processed) trip:
-# { tourist_id, start_time, end_time, distance_km }
-@booking_bp.route('/travel_logs', methods=['POST'])
-def create_travel_log():
-    data = request.get_json()
-    if not data:
-        return jsonify({"error": "Missing JSON data"}), 400
-
-    tourist_id = data.get('tourist_id')
-    start_time = data.get('start_time')
-    end_time = data.get('end_time')
-    distance_km = data.get('distance_km')
-
-    if tourist_id is None or distance_km is None or start_time is None or end_time is None:
-        return jsonify({"error": "Missing fields (tourist_id, start_time, end_time, distance_km)"}), 400
-
-    try:
-        start_dt = parser.isoparse(start_time)
-        end_dt = parser.isoparse(end_time)
-    except Exception:
-        return jsonify({"error": "Invalid datetime format"}), 400
-
-    # compute duration hours (avoid division by zero)
-    duration_seconds = (end_dt - start_dt).total_seconds()
-    duration_hours = max(duration_seconds / 3600.0, 1e-6)
-    avg_kmh = float(distance_km) / duration_hours
-
-    mode = detect_mode(avg_kmh)
-
-    factor = EMISSION_FACTORS.get(mode, EMISSION_FACTORS['unknown'])
-    co2_kg = float(distance_km) * float(factor)
-
-    points_per_km = POINTS_PER_KM_BY_MODE.get(mode, 0)
-    points_awarded = int(float(distance_km) * points_per_km)
-
-    # persist travel_log and award points (if >0)
-    try:
-        TravelLog.save(tourist_id, start_dt, end_dt, distance_km, mode, co2_kg, points_awarded)
-        if points_awarded > 0:
-            EcoPoints.adjust_balance(tourist_id, points_awarded)
-            # we don't have a booking_id here; link null
-            EcoPoints.create_transaction(tourist_id, points_awarded, 'earn', None,
-                                         f"Earned {points_awarded} points for {mode} trip ({distance_km} km).")
-    except Exception as e:
-        return jsonify({"error": "Failed to save travel log", "details": str(e)}), 500
-
-    new_balance = EcoPoints.get_balance(tourist_id)
-
-    return jsonify({
-        "message": "Travel log saved",
-        "mode": mode,
-        "avg_kmh": round(avg_kmh, 2),
-        "co2_kg": round(co2_kg, 3),
-        "points_awarded": points_awarded,
-        "new_balance": new_balance
-    }), 201
 
 
 # Optional: list transactions for a user

@@ -10,6 +10,7 @@ from routes.listing_routes import listing_bp
 from routes.booking_routes import booking_bp
 from routes.admin_routes import admin_bp
 from routes.users import user_bp
+from routes.plan_trip import plan_trip_bp
 
 
 app = Flask(__name__)
@@ -32,7 +33,7 @@ app.register_blueprint(listing_bp)
 app.register_blueprint(booking_bp)
 app.register_blueprint(admin_bp)
 app.register_blueprint(user_bp)
-
+app.register_blueprint(plan_trip_bp)
 
    
 start_scheduler()
