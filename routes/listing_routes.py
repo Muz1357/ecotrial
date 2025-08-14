@@ -2,69 +2,166 @@ from flask import Blueprint, request, jsonify, current_app
 import cloudinary.uploader
 from models.db import get_connection
 from models.listing import Listing
-from config import ALLOWED_EXTENSIONS
+from config import ALLOWED_EXTENSIONS, GOOGLE_MAPS_API_KEY  # Add your API key to config
+import requests
 
 listing_bp = Blueprint('listing', __name__)
+
+def geocode_location(location):
+    try:
+        base_url = "https://maps.googleapis.com/maps/api/geocode/json"
+        params = {
+            'address': location,
+            'key': GOOGLE_MAPS_API_KEY
+        }
+        
+        response = requests.get(base_url, params=params, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        if data['status'] == 'OK' and data.get('results'):
+            location_data = data['results'][0]['geometry']['location']
+            return {
+                'latitude': location_data['lat'],
+                'longitude': location_data['lng'],
+                'formatted_address': data['results'][0]['formatted_address']
+            }
+        current_app.logger.error(f"Geocoding failed for {location}: {data.get('status')}")
+        return None
+    except requests.exceptions.RequestException as e:
+        current_app.logger.error(f"Geocoding API error for {location}: {str(e)}")
+        return None
+    except Exception as e:
+        current_app.logger.error(f"Unexpected geocoding error for {location}: {str(e)}")
+        return None
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @listing_bp.route('/listings', methods=['GET'])
 def get_listings():
-    listings = Listing.get_approved_listings()
-    return jsonify(listings), 200
+    lat = request.args.get('lat', type=float)
+    lng = request.args.get('lng', type=float)
+    radius_km = request.args.get('radius_km', 5, type=float)
+    
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+
+    if lat and lng:
+        query = """
+        SELECT *,
+        (6371 * acos(
+            cos(radians(%s)) * cos(radians(latitude)) *
+            cos(radians(longitude) - radians(%s)) +
+            sin(radians(%s)) * sin(radians(latitude))
+        )) AS distance
+        FROM listing
+        WHERE is_approved = 1
+        HAVING distance <= %s
+        ORDER BY distance
+        """
+        cursor.execute(query, (lat, lng, lat, radius_km))
+    else:
+        cursor.execute("SELECT * FROM listing WHERE is_approved = 1")
+
+    listings = cursor.fetchall()
+    cursor.close()
+    connection.close()
+    return jsonify(listings)
 
 @listing_bp.route('/upload-listing', methods=['POST'])
 def upload_listing():
     try:
-        # Required form fields
-        user_id = request.form.get('user_id')
-        title = request.form.get('title')
-        description = request.form.get('description')
-        price = request.form.get('price')
-        location = request.form.get('location')
-        rooms_count = request.form.get('rooms')
-        room_details = request.form.get('room_details')
-
-        # Required files
+        # Validate required fields
+        required_fields = {
+            'user_id': request.form.get('user_id'),
+            'title': request.form.get('title'),
+            'description': request.form.get('description'),
+            'price': request.form.get('price'),
+            'location': request.form.get('location'),
+            'rooms_available': request.form.get('rooms_available'),
+            'room_details': request.form.get('room_details')
+        }
+        
+        # Validate files
         image_file = request.files.get('image')
         cert_file = request.files.get('eco_cert')
 
-        if not all([user_id, title, description, price, location, rooms_count, room_details, image_file, cert_file]):
-            return jsonify({"error": "Missing required fields"}), 400
+        if not all(required_fields.values()) or not image_file or not cert_file:
+            missing = [k for k, v in required_fields.items() if not v]
+            if not image_file:
+                missing.append('image')
+            if not cert_file:
+                missing.append('eco_cert')
+            return jsonify({
+                "error": "Missing required fields",
+                "missing": missing
+            }), 400
 
-        # Upload to Cloudinary
-        image_upload = cloudinary.uploader.upload(image_file)
-        cert_upload = cloudinary.uploader.upload(cert_file)
+        # Geocode the location using Google Maps
+        geo_data = geocode_location(required_fields['location'])
+        if not geo_data:
+            return jsonify({
+                "error": "Could not determine location coordinates",
+                "details": "Please check the address and try again"
+            }), 400
 
-        image_url = image_upload.get('secure_url')
-        cert_url = cert_upload.get('secure_url')
+        # Upload media to Cloudinary
+        try:
+            image_upload = cloudinary.uploader.upload(image_file)
+            cert_upload = cloudinary.uploader.upload(cert_file)
+            image_url = image_upload.get('secure_url')
+            cert_url = cert_upload.get('secure_url')
+        except Exception as upload_error:
+            current_app.logger.error(f"Media upload failed: {str(upload_error)}")
+            return jsonify({
+                "error": "Failed to upload media files",
+                "details": str(upload_error)
+            }), 500
 
         # Create and save listing
         listing = Listing(
-            user_id=user_id,
-            title=title,
-            description=description,
-            price=price,
-            location=location,
+            user_id=required_fields['user_id'],
+            title=required_fields['title'],
+            description=required_fields['description'],
+            price=required_fields['price'],
+            location=geo_data.get('formatted_address', required_fields['location']),
+            latitude=geo_data['latitude'],
+            longitude=geo_data['longitude'],
             image_url=image_url,
             eco_cert_url=cert_url,
-            rooms_count=rooms_count,
-            room_details=room_details,
-            is_approved=False  # initially not approved
+            rooms_available=required_fields['rooms_available'],
+            room_details=required_fields['room_details'],
+            is_approved=False
         )
-        listing.save()
+        
+        listing_id = listing.save()
+        if not listing_id:
+            raise Exception("Failed to save listing to database")
 
         return jsonify({
-            "message": "Listing uploaded and saved successfully",
-            "image_url": image_url,
-            "eco_cert_url": cert_url
-        }), 200
+            "message": "Listing uploaded successfully",
+            "listing_id": listing_id,
+            "location_details": {
+                "original_input": required_fields['location'],
+                "formatted_address": geo_data.get('formatted_address'),
+                "coordinates": {
+                    "lat": geo_data['latitude'],
+                    "lng": geo_data['longitude']
+                }
+            },
+            "media": {
+                "image_url": image_url,
+                "eco_cert_url": cert_url
+            }
+        }), 201
 
     except Exception as e:
-        print("❌ Upload Error:", str(e))
-        return jsonify({"error": str(e)}), 500
-
+        current_app.logger.error(f"Listing upload failed: {str(e)}")
+        return jsonify({
+            "error": "Failed to create listing",
+            "details": str(e)
+        }), 500
 
 @listing_bp.route('/listings/<int:listing_id>', methods=['GET'])
 def get_listing_by_id(listing_id):
