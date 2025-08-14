@@ -79,7 +79,7 @@ def upload_listing():
             'description': request.form.get('description'),
             'price': request.form.get('price'),
             'location': request.form.get('location'),
-            'rooms_available': request.form.get('rooms_available'),
+            'rooms_available': request.form.get('rooms'),
             'room_details': request.form.get('room_details')
         }
         
