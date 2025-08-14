@@ -1,7 +1,5 @@
 from models.db import get_connection
 
-import logging
-
 class Listing:
     def __init__(self, id=None, user_id=None, title=None, description=None,
                  price=None, location=None, latitude=None, longitude=None, 
@@ -22,43 +20,25 @@ class Listing:
         self.is_approved = is_approved
 
     def save(self):
-        conn = None
-        cursor = None
-        try:
-            conn = get_connection()
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                INSERT INTO listing (
-                    user_id, title, description, price, location,
-                    latitude, longitude, image_path, eco_cert_url, 
-                    rooms_available, room_details, is_approved
-                )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-            """, (
-                self.user_id, self.title, self.description, self.price,
-                self.location, self.latitude, self.longitude, self.image_path, 
-                self.eco_cert_url, self.rooms_available, self.room_details, 
-                self.is_approved
-            ))
-            
-            self.id = cursor.fetchone()[0]
-            conn.commit()
-            return True
-            
-        except Exception as e:
-            logging.error(f"Failed to save listing to database: {str(e)}")
-            if conn:
-                conn.rollback()
-            return False
-            
-        finally:
-            if cursor:
-                cursor.close()
-            if conn:
-                conn.close()
-                
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO listing (
+                user_id, title, description, price, location,
+                latitude, longitude, image_path, eco_cert_url, 
+                rooms_available, room_details, is_approved
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,(
+            self.user_id, self.title, self.description, self.price,
+            self.location, self.latitude, self.longitude, self.image_path, 
+            self.eco_cert_url, self.rooms_available, self.room_details, 
+            self.is_approved
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
     @staticmethod
     def get_approved_listings():
         conn = get_connection()
