@@ -175,7 +175,7 @@ def plan_trip():
     # list of travel modes to ask Google Directions for
     modes = ['driving', 'transit', 'bicycling', 'walking']
 
-    google_key = os.getenv('GOOGLE_MAPS_API_KEY', '')
+    google_key = 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs'
     if not google_key:
         return jsonify({'error': 'GOOGLE_MAPS_API_KEY env var is required'}), 500
 
