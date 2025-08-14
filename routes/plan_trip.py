@@ -1,5 +1,6 @@
 # routes/plan_trip.py
 import os
+import requests
 import math
 from flask import Blueprint, request, jsonify, current_app
 from models.db import get_connection
