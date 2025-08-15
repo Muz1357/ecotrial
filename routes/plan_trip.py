@@ -99,8 +99,8 @@ def geocode_location(location_name):
 
 def find_nearby_hotels(location_name=None, lat=None, lng=None, radius_km=None):
     """
-    Query database for approved eco-certified hotels:
-    - If `location_name` is given: Match hotels by name (e.g., "Kurunegala").
+    Query approved eco-certified hotels:
+    - If `location_name` is given: Match hotels WHERE address CONTAINS the name (e.g., "Kurunegala").
     - If `lat/lng` is given: Search within a radius (old behavior).
     """
     try:
@@ -108,22 +108,23 @@ def find_nearby_hotels(location_name=None, lat=None, lng=None, radius_km=None):
         cursor = conn.cursor(dictionary=True)
 
         if location_name:
-            # Search by location name (exact match)
+            # Search for hotels WHERE address CONTAINS the location_name (e.g., "Kurunegala")
             query = """
                 SELECT 
                     id, user_id, title, description, image_path, 
                     price, rooms_available, room_details, eco_cert_url,
-                    latitude, longitude
+                    latitude, longitude, address
                 FROM listing
                 WHERE is_approved = 1 
                   AND eco_cert_url IS NOT NULL
-                  AND location_name = %s  # Assumes a column `location_name` exists
+                  AND (address LIKE %s OR location_name LIKE %s)  # Checks both columns
                 ORDER BY price ASC
                 LIMIT %s
             """
-            cursor.execute(query, (location_name, MAX_HOTELS_TO_RETURN))
+            search_term = f"%{location_name}%"  # e.g., "%Kurunegala%"
+            cursor.execute(query, (search_term, search_term, MAX_HOTELS_TO_RETURN))
         else:
-            # Search by coordinates (old behavior)
+            # Old coordinate-based search (unchanged)
             query = """
                 SELECT 
                     id, user_id, title, description, image_path, 
@@ -231,37 +232,42 @@ def plan_trip():
         return jsonify({"error": "Could not calculate any routes"}), 400
     
     # Find approved eco-certified hotels near route midpoint
-    if isinstance(end, dict):
-        destination_coords = end
-    elif isinstance(end, str):
-        if ',' in end:  # Coordinates string "lat,lng"
-            try:
-                lat, lng = map(float, end.split(','))
-                destination_coords = {'lat': lat, 'lng': lng}
-            except ValueError:
-                return jsonify({"error": "Invalid coordinate format. Use 'lat,lng'"}), 400
-        else:  # Location name like "Pasikuda"
-            # First try to find hotels by name
-            hotels = find_nearby_hotels(location_name=end)
-            if not hotels:  # If no hotels found by name, try geocoding
-                destination_coords = geocode_location(end)
-                if not destination_coords:
-                    return jsonify({"error": f"Could not geocode location: {end}"}), 400
-                hotels = find_nearby_hotels(lat=destination_coords['lat'], 
-                                        lng=destination_coords['lng'], 
-                                        radius_km=HOTEL_SEARCH_RADIUS_KM)
-            else:
-                # If hotels were found by name, set dummy coords for response
-                destination_coords = {'lat': hotels[0]['latitude'], 
-                                    'lng': hotels[0]['longitude']}
+    if isinstance(end, str) and ',' not in end:
+        # Try to match hotels by name (e.g., "Kurunegala")
+        hotels = find_nearby_hotels(location_name=end)
+        
+        # Fallback: If no hotels found, geocode and search by coordinates
+        if not hotels:
+            destination_coords = geocode_location(end)
+            if destination_coords:
+                hotels = find_nearby_hotels(
+                    lat=destination_coords['lat'],
+                    lng=destination_coords['lng'],
+                    radius_km=HOTEL_SEARCH_RADIUS_KM
+                )
+    else:
+        # Handle coordinate-based search (old behavior)
+        destination_coords = (
+            end if isinstance(end, dict) 
+            else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
+        )
+        hotels = find_nearby_hotels(
+            lat=destination_coords['lat'],
+            lng=destination_coords['lng'],
+            radius_km=HOTEL_SEARCH_RADIUS_KM
+        )
 
-    # Generate recommendations
-    recommendations = get_recommendations(routes)
+    # Ensure destination_coords exists for response
+    if 'destination_coords' not in locals():
+        if hotels:
+            destination_coords = {'lat': hotels[0]['latitude'], 'lng': hotels[0]['longitude']}
+        else:
+            destination_coords = {'lat': None, 'lng': None}
 
     return jsonify({
         "status": "success",
         "routes": routes,
         "hotels": hotels,
-        "recommendations": recommendations,
-        "destination": destination_coords  # Now guaranteed to be defined
+        "recommendations": get_recommendations(routes),
+        "destination": destination_coords
     })
