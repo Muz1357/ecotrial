@@ -97,33 +97,56 @@ def geocode_location(location_name):
         current_app.logger.error(f"Geocoding error: {str(e)}")
         return None
 
-def find_nearby_hotels(lat, lng, radius_km):
-    """Query database for approved eco-certified hotels near given coordinates"""
+def find_nearby_hotels(location_name=None, lat=None, lng=None, radius_km=None):
+    """
+    Query database for approved eco-certified hotels:
+    - If `location_name` is given: Match hotels by name (e.g., "Kurunegala").
+    - If `lat/lng` is given: Search within a radius (old behavior).
+    """
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
-        
-        query = """
-            SELECT 
-                id, user_id, title, description, image_path, 
-                price, rooms_available, room_details, eco_cert_url,
-                latitude, longitude,
-                (6371 * acos(
-                    cos(radians(%s)) * cos(radians(latitude)) * 
-                    cos(radians(longitude) - radians(%s)) + 
-                    sin(radians(%s)) * sin(radians(latitude))
-                )) AS distance
-            FROM listing
-            WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
-            HAVING distance < %s
-            ORDER BY distance
-            LIMIT %s
-        """
-        cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
+
+        if location_name:
+            # Search by location name (exact match)
+            query = """
+                SELECT 
+                    id, user_id, title, description, image_path, 
+                    price, rooms_available, room_details, eco_cert_url,
+                    latitude, longitude
+                FROM listing
+                WHERE is_approved = 1 
+                  AND eco_cert_url IS NOT NULL
+                  AND location_name = %s  # Assumes a column `location_name` exists
+                ORDER BY price ASC
+                LIMIT %s
+            """
+            cursor.execute(query, (location_name, MAX_HOTELS_TO_RETURN))
+        else:
+            # Search by coordinates (old behavior)
+            query = """
+                SELECT 
+                    id, user_id, title, description, image_path, 
+                    price, rooms_available, room_details, eco_cert_url,
+                    latitude, longitude,
+                    (6371 * acos(
+                        cos(radians(%s)) * cos(radians(latitude)) * 
+                        cos(radians(longitude) - radians(%s)) + 
+                        sin(radians(%s)) * sin(radians(latitude))
+                    )) AS distance
+                FROM listing
+                WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
+                HAVING distance < %s
+                ORDER BY distance
+                LIMIT %s
+            """
+            cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
+
         hotels = cursor.fetchall()
         
         for hotel in hotels:
-            hotel['distance'] = float(hotel['distance'])
+            if 'distance' in hotel:
+                hotel['distance'] = float(hotel['distance'])
             hotel['latitude'] = float(hotel['latitude'])
             hotel['longitude'] = float(hotel['longitude'])
         
@@ -208,22 +231,15 @@ def plan_trip():
         return jsonify({"error": "Could not calculate any routes"}), 400
     
     # Find approved eco-certified hotels near route midpoint
-    if isinstance(end, dict):
-        destination_coords = end
-    elif isinstance(end, str):
-        if ',' in end:  # Coordinates string "lat,lng"
-            try:
-                lat, lng = map(float, end.split(','))
-                destination_coords = {'lat': lat, 'lng': lng}
-            except ValueError:
-                return jsonify({"error": "Invalid coordinate format. Use 'lat,lng'"}), 400
-        else:  # Location name like "Pasikuda"
-            destination_coords = geocode_location(end)
-            if not destination_coords:
-                return jsonify({"error": f"Could not geocode location: {end}"}), 400
-
-    # Find hotels near destination
-    hotels = find_nearby_hotels(destination_coords['lat'], destination_coords['lng'], HOTEL_SEARCH_RADIUS_KM)
+    if isinstance(end, str) and ',' not in end:
+        hotels = find_nearby_hotels(location_name=end)  # Search by name
+    else:
+        # Handle coordinates (old behavior)
+        destination_coords = (
+            end if isinstance(end, dict) 
+            else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
+        )
+        hotels = find_nearby_hotels(lat=destination_coords['lat'], lng=destination_coords['lng'], radius_km=HOTEL_SEARCH_RADIUS_KM)
     
     # Generate recommendations
     recommendations = get_recommendations(routes)
