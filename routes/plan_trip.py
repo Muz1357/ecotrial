@@ -99,20 +99,20 @@ def geocode_location(location):
 
 def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     """
-    Query approved eco-certified hotels:
-    - If `location` is given: Match hotels WHERE location CONTAINS the name (case-insensitive)
-    - If `lat/lng` is given: Search within a radius
+    FINAL WORKING VERSION - Query approved eco-certified hotels:
+    - If location is provided: Search by location name (case-insensitive)
+    - If coordinates are provided: Search within radius
     """
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
         if location:
-            # EXACTLY matches your working SQL query
+            # Exact match to the SQL query that works in your database
             query = """
                 SELECT 
                     id, title, location, is_approved, eco_cert_url,
-                    latitude, longitude
+                    latitude, longitude, price, image_path
                 FROM listing
                 WHERE LOWER(location) LIKE LOWER(%s)
                   AND is_approved = 1
@@ -125,9 +125,8 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
             # Coordinate-based search
             query = """
                 SELECT 
-                    id, user_id, title, description, image_path, 
-                    price, rooms_available, room_details, eco_cert_url,
-                    latitude, longitude,
+                    id, title, location, is_approved, eco_cert_url,
+                    latitude, longitude, price, image_path,
                     (6371 * acos(
                         cos(radians(%s)) * cos(radians(latitude)) * 
                         cos(radians(longitude) - radians(%s)) + 
@@ -142,8 +141,9 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
             cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
 
         hotels = cursor.fetchall()
+        current_app.logger.info(f"Found {len(hotels)} hotels matching criteria")
         
-        # Convert numeric fields to proper types
+        # Convert numeric fields
         for hotel in hotels:
             if 'distance' in hotel:
                 hotel['distance'] = float(hotel['distance'])
@@ -151,6 +151,8 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                 hotel['latitude'] = float(hotel['latitude'])
             if 'longitude' in hotel:
                 hotel['longitude'] = float(hotel['longitude'])
+            if 'price' in hotel:
+                hotel['price'] = float(hotel['price'])
         
         return hotels
     except Exception as e:
@@ -159,6 +161,7 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     finally:
         if conn:
             conn.close()
+
 
 def get_recommendations(routes):
     """Determine the best recommendations from available routes"""
@@ -234,11 +237,12 @@ def plan_trip():
     
     # Find approved eco-certified hotels near route midpoint
     if isinstance(end, str) and ',' not in end:
-        # Try to match hotels by name (e.g., "Kurunegala")
+        # First try exact location match
         hotels = find_nearby_hotels(location=end)
+        current_app.logger.info(f"Initial search for '{end}' found {len(hotels)} hotels")
         
-        # Fallback: If no hotels found, geocode and search by coordinates
         if not hotels:
+            # Fallback to geocoding if no hotels found by name
             destination_coords = geocode_location(end)
             if destination_coords:
                 hotels = find_nearby_hotels(
@@ -246,8 +250,9 @@ def plan_trip():
                     lng=destination_coords['lng'],
                     radius_km=HOTEL_SEARCH_RADIUS_KM
                 )
+                current_app.logger.info(f"Geocode search found {len(hotels)} hotels")
     else:
-        # Handle coordinate-based search (old behavior)
+        # Handle coordinate-based search
         destination_coords = (
             end if isinstance(end, dict) 
             else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
@@ -258,17 +263,14 @@ def plan_trip():
             radius_km=HOTEL_SEARCH_RADIUS_KM
         )
 
-    # Ensure destination_coords exists for response
-    if 'destination_coords' not in locals():
-        if hotels:
-            destination_coords = {'lat': hotels[0]['latitude'], 'lng': hotels[0]['longitude']}
-        else:
-            destination_coords = {'lat': None, 'lng': None}
-
-    return jsonify({
+    # Prepare response
+    response_data = {
         "status": "success",
         "routes": routes,
         "hotels": hotels,
         "recommendations": get_recommendations(routes),
-        "destination": destination_coords
-    })
+        "destination": destination_coords if 'destination_coords' in locals() else None
+    }
+    
+    current_app.logger.info(f"Returning {len(hotels)} hotels in response")
+    return jsonify(response_data)
