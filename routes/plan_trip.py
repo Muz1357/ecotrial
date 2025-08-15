@@ -76,11 +76,11 @@ def decode_polyline(polyline_str):
     
     return coordinates
 
-def geocode_location(location_name):
+def geocode_location(location):
     """Convert location name (e.g., 'Pasikuda') to coordinates using Google Geocoding API"""
     try:
         params = {
-            'address': location_name,
+            'address': location,
             'key': GOOGLE_API_KEY
         }
         response = requests.get(
