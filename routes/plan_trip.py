@@ -85,32 +85,34 @@ def get_route_midpoint(poly_points):
     return poly_points[mid_idx]
 
 def find_nearby_hotels(lat, lng, radius_km):
-    """Query database for approved eco-certified hotels near given coordinates"""
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         
         query = """
-            SELECT 
-                id, user_id, title, description, image_path, 
-                price, rooms_available, room_details, eco_cert_url,
-                latitude, longitude,
-                (6371 * acos(
-                    cos(radians(%s)) * cos(radians(latitude)) * 
-                    cos(radians(longitude) - radians(%s)) + 
-                    sin(radians(%s)) * sin(radians(latitude))
-                )) AS distance
-            FROM listing
-            WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
-            HAVING distance < %s
-            ORDER BY distance
-            LIMIT %s
+        SELECT 
+            id, title, description, image_path,
+            price, rooms_available, room_details, 
+            eco_cert_url, latitude, longitude,
+            (6371 * acos(
+                cos(radians(%s)) * cos(radians(latitude)) *
+                cos(radians(longitude) - radians(%s)) +
+                sin(radians(%s)) * sin(radians(latitude))
+            )) AS distance_from_point
+        FROM listing
+        WHERE is_approved = 1
+        AND latitude IS NOT NULL
+        AND longitude IS NOT NULL
+        HAVING distance_from_point <= %s
+        ORDER BY distance_from_point
+        LIMIT 20
         """
-        cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
+        cursor.execute(query, (lat, lng, lat, radius_km))
         hotels = cursor.fetchall()
         
+        # Add distance from route calculation
         for hotel in hotels:
-            hotel['distance'] = float(hotel['distance'])
+            hotel['distance_from_point'] = float(hotel['distance_from_point'])
             hotel['latitude'] = float(hotel['latitude'])
             hotel['longitude'] = float(hotel['longitude'])
         
@@ -194,13 +196,29 @@ def plan_trip():
     if not routes:
         return jsonify({"error": "Could not calculate any routes"}), 400
     
-    # Find approved eco-certified hotels near route midpoint
-    primary_route = routes[0]
-    midpoint = get_route_midpoint(primary_route['poly_points'])
-    hotels = []
+    all_hotels = []
+    for route in routes:
+        # Sample multiple points along the route
+        sample_points = []
+        poly_points = route['poly_points']
+        
+        # Sample every 10th point (adjust as needed)
+        for i in range(0, len(poly_points), 10):
+            if i < len(poly_points):
+                sample_points.append(poly_points[i])
+        
+        # Search around each sample point
+        for point in sample_points:
+            hotels = find_nearby_hotels(point['lat'], point['lng'], 10)  # Smaller radius
+            all_hotels.extend(hotels)
     
-    if midpoint:
-        hotels = find_nearby_hotels(midpoint['lat'], midpoint['lng'], HOTEL_SEARCH_RADIUS_KM)
+    # Remove duplicates
+    unique_hotels = []
+    hotel_ids = set()
+    for hotel in all_hotels:
+        if hotel['id'] not in hotel_ids:
+            unique_hotels.append(hotel)
+            hotel_ids.add(hotel['id'])
     
     # Generate recommendations
     recommendations = get_recommendations(routes)
@@ -208,6 +226,6 @@ def plan_trip():
     return jsonify({
         "status": "success",
         "routes": routes,
-        "hotels": hotels,
+        "hotels": unique_hotels,
         "recommendations": recommendations
     })
