@@ -9,17 +9,15 @@ plan_trip_bp = Blueprint('plan_trip', __name__)
 
 # Configuration
 GOOGLE_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs')
-HOTEL_SEARCH_RADIUS_KM = 10
-MAX_HOTELS_TO_RETURN = 10
+HOTEL_SEARCH_RADIUS_KM = 20
+MAX_HOTELS_TO_RETURN = 20
 
 # CO2 emission factors (kg CO2 per km)
 EMISSION_FACTORS = {
-    'driving': 0.192,    # Average petrol car
+    'Car': 0.192,    # Average petrol car
     'bicycling': 0.0,
     'walking': 0.0,
-    'transit': 0.105,    # Average bus/train
-    'train': 0.035,      # Electric train
-    'bus': 0.105,        # Average bus
+    'transit': 0.105,    # Average bus/train      
     'motorcycle': 0.103, # Average motorcycle
     'electric_car': 0.053 # Electric vehicle
 }
