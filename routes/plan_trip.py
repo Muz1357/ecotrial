@@ -105,7 +105,7 @@ def find_nearby_hotels(lat, lng, radius_km):
         AND longitude IS NOT NULL
         HAVING distance_from_point <= %s
         ORDER BY distance_from_point
-        LIMIT 20
+        LIMIT %s
         """
         cursor.execute(query, (lat, lng, lat, radius_km))
         hotels = cursor.fetchall()
