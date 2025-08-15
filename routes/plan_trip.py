@@ -85,34 +85,32 @@ def get_route_midpoint(poly_points):
     return poly_points[mid_idx]
 
 def find_nearby_hotels(lat, lng, radius_km):
+    """Query database for approved eco-certified hotels near given coordinates"""
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         
         query = """
-        SELECT 
-            id, title, description, image_path,
-            price, rooms_available, room_details, 
-            eco_cert_url, latitude, longitude,
-            (6371 * acos(
-                cos(radians(%s)) * cos(radians(latitude)) *
-                cos(radians(longitude) - radians(%s)) +
-                sin(radians(%s)) * sin(radians(latitude))
-            )) AS distance_from_point
-        FROM listing
-        WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
-        AND latitude IS NOT NULL
-        AND longitude IS NOT NULL
-        HAVING distance_from_point <= %s
-        ORDER BY distance_from_point
-        LIMIT 20
+            SELECT 
+                id, user_id, title, description, image_path, 
+                price, rooms_available, room_details, eco_cert_url,
+                latitude, longitude,
+                (6371 * acos(
+                    cos(radians(%s)) * cos(radians(latitude)) * 
+                    cos(radians(longitude) - radians(%s)) + 
+                    sin(radians(%s)) * sin(radians(latitude))
+                )) AS distance
+            FROM listing
+            WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
+            HAVING distance < %s
+            ORDER BY distance
+            LIMIT %s
         """
-        cursor.execute(query, (lat, lng, lat, radius_km))
+        cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
         hotels = cursor.fetchall()
         
-        # Add distance from route calculation
         for hotel in hotels:
-            hotel['distance_from_point'] = float(hotel['distance_from_point'])
+            hotel['distance'] = float(hotel['distance'])
             hotel['latitude'] = float(hotel['latitude'])
             hotel['longitude'] = float(hotel['longitude'])
         
