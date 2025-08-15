@@ -100,7 +100,7 @@ def find_nearby_hotels(lat, lng, radius_km):
                 sin(radians(%s)) * sin(radians(latitude))
             )) AS distance_from_point
         FROM listing
-        WHERE is_approved = 1
+        WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
         AND latitude IS NOT NULL
         AND longitude IS NOT NULL
         HAVING distance_from_point <= %s
@@ -209,7 +209,7 @@ def plan_trip():
         
         # Search around each sample point
         for point in sample_points:
-            hotels = find_nearby_hotels(point['lat'], point['lng'], 10)  # Smaller radius
+            hotels = find_nearby_hotels(point['lat'], point['lng'], 3)  # Smaller radius
             all_hotels.extend(hotels)
     
     # Remove duplicates
