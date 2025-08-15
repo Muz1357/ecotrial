@@ -231,23 +231,37 @@ def plan_trip():
         return jsonify({"error": "Could not calculate any routes"}), 400
     
     # Find approved eco-certified hotels near route midpoint
-    if isinstance(end, str) and ',' not in end:
-        hotels = find_nearby_hotels(location_name=end)  # Search by name
-    else:
-        # Handle coordinates (old behavior)
-        destination_coords = (
-            end if isinstance(end, dict) 
-            else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
-        )
-        hotels = find_nearby_hotels(lat=destination_coords['lat'], lng=destination_coords['lng'], radius_km=HOTEL_SEARCH_RADIUS_KM)
-    
+    if isinstance(end, dict):
+        destination_coords = end
+    elif isinstance(end, str):
+        if ',' in end:  # Coordinates string "lat,lng"
+            try:
+                lat, lng = map(float, end.split(','))
+                destination_coords = {'lat': lat, 'lng': lng}
+            except ValueError:
+                return jsonify({"error": "Invalid coordinate format. Use 'lat,lng'"}), 400
+        else:  # Location name like "Pasikuda"
+            # First try to find hotels by name
+            hotels = find_nearby_hotels(location_name=end)
+            if not hotels:  # If no hotels found by name, try geocoding
+                destination_coords = geocode_location(end)
+                if not destination_coords:
+                    return jsonify({"error": f"Could not geocode location: {end}"}), 400
+                hotels = find_nearby_hotels(lat=destination_coords['lat'], 
+                                        lng=destination_coords['lng'], 
+                                        radius_km=HOTEL_SEARCH_RADIUS_KM)
+            else:
+                # If hotels were found by name, set dummy coords for response
+                destination_coords = {'lat': hotels[0]['latitude'], 
+                                    'lng': hotels[0]['longitude']}
+
     # Generate recommendations
     recommendations = get_recommendations(routes)
-    
+
     return jsonify({
         "status": "success",
         "routes": routes,
         "hotels": hotels,
         "recommendations": recommendations,
-        "destination": destination_coords  # Include destination coords in response
+        "destination": destination_coords  # Now guaranteed to be defined
     })
