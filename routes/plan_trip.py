@@ -76,14 +76,6 @@ def decode_polyline(polyline_str):
     
     return coordinates
 
-def get_route_midpoint(poly_points):
-    """Calculate midpoint of a route from polyline points"""
-    if not poly_points:
-        return None
-    
-    mid_idx = len(poly_points) // 2
-    return poly_points[mid_idx]
-
 def find_nearby_hotels(lat, lng, radius_km):
     """Query database for approved eco-certified hotels near given coordinates"""
     try:
@@ -195,12 +187,8 @@ def plan_trip():
         return jsonify({"error": "Could not calculate any routes"}), 400
     
     # Find approved eco-certified hotels near route midpoint
-    primary_route = routes[0]
-    midpoint = get_route_midpoint(primary_route['poly_points'])
-    hotels = []
-    
-    if midpoint:
-        hotels = find_nearby_hotels(midpoint['lat'], midpoint['lng'], HOTEL_SEARCH_RADIUS_KM)
+    destination_coords = end if isinstance(end, dict) else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
+    hotels = find_nearby_hotels(destination_coords['lat'], destination_coords['lng'], HOTEL_SEARCH_RADIUS_KM)
     
     # Generate recommendations
     recommendations = get_recommendations(routes)
@@ -209,5 +197,6 @@ def plan_trip():
         "status": "success",
         "routes": routes,
         "hotels": hotels,
-        "recommendations": recommendations
+        "recommendations": recommendations,
+        "destination": destination_coords  # Include destination coords in response
     })
