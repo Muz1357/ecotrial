@@ -194,29 +194,13 @@ def plan_trip():
     if not routes:
         return jsonify({"error": "Could not calculate any routes"}), 400
     
-    all_hotels = []
-    for route in routes:
-        # Sample multiple points along the route
-        sample_points = []
-        poly_points = route['poly_points']
-        
-        # Sample every 10th point (adjust as needed)
-        for i in range(0, len(poly_points), 10):
-            if i < len(poly_points):
-                sample_points.append(poly_points[i])
-        
-        # Search around each sample point
-        for point in sample_points:
-            hotels = find_nearby_hotels(point['lat'], point['lng'], 3)  # Smaller radius
-            all_hotels.extend(hotels)
+    # Find approved eco-certified hotels near route midpoint
+    primary_route = routes[0]
+    midpoint = get_route_midpoint(primary_route['poly_points'])
+    hotels = []
     
-    # Remove duplicates
-    unique_hotels = []
-    hotel_ids = set()
-    for hotel in all_hotels:
-        if hotel['id'] not in hotel_ids:
-            unique_hotels.append(hotel)
-            hotel_ids.add(hotel['id'])
+    if midpoint:
+        hotels = find_nearby_hotels(midpoint['lat'], midpoint['lng'], HOTEL_SEARCH_RADIUS_KM)
     
     # Generate recommendations
     recommendations = get_recommendations(routes)
@@ -224,6 +208,6 @@ def plan_trip():
     return jsonify({
         "status": "success",
         "routes": routes,
-        "hotels": unique_hotels,
+        "hotels": hotels,
         "recommendations": recommendations
     })
