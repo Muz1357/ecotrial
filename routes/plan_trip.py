@@ -100,7 +100,7 @@ def geocode_location(location):
 def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     """
     Query approved eco-certified hotels:
-    - If `location` is given: Match hotels WHERE location CONTAINS the name (e.g., "Kurunegala")
+    - If `location` is given: Match hotels WHERE location CONTAINS the name (case-insensitive)
     - If `lat/lng` is given: Search within a radius
     """
     try:
@@ -108,21 +108,18 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
         cursor = conn.cursor(dictionary=True)
 
         if location:
-            # Search for hotels WHERE location CONTAINS the name (case-insensitive)
+            # EXACTLY matches your working SQL query
             query = """
                 SELECT 
-                    id, user_id, title, description, image_path, 
-                    price, rooms_available, room_details, eco_cert_url,
-                    latitude, longitude, location
+                    id, title, location, is_approved, eco_cert_url,
+                    latitude, longitude
                 FROM listing
-                WHERE is_approved = 1 
+                WHERE LOWER(location) LIKE LOWER(%s)
+                  AND is_approved = 1
                   AND eco_cert_url IS NOT NULL
-                  AND LOWER(location) LIKE LOWER(%s)
-                ORDER BY price ASC
                 LIMIT %s
             """
-            search_term = f"%{location}%"  # e.g., "%Kurunegala%"
-            current_app.logger.info(f"Searching hotels with location: {search_term}")  # Debug log
+            search_term = f"%{location}%"
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
         else:
             # Coordinate-based search
@@ -145,17 +142,19 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
             cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
 
         hotels = cursor.fetchall()
-        current_app.logger.info(f"Found {len(hotels)} hotels")  # Debug log
         
+        # Convert numeric fields to proper types
         for hotel in hotels:
             if 'distance' in hotel:
                 hotel['distance'] = float(hotel['distance'])
-            hotel['latitude'] = float(hotel['latitude'])
-            hotel['longitude'] = float(hotel['longitude'])
+            if 'latitude' in hotel:
+                hotel['latitude'] = float(hotel['latitude'])
+            if 'longitude' in hotel:
+                hotel['longitude'] = float(hotel['longitude'])
         
         return hotels
     except Exception as e:
-        current_app.logger.error(f"Database error: {str(e)}")
+        current_app.logger.error(f"Database error in find_nearby_hotels: {str(e)}")
         return []
     finally:
         if conn:
