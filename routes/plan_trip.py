@@ -100,15 +100,15 @@ def geocode_location(location):
 def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     """
     Query approved eco-certified hotels:
-    - If `location_name` is given: Match hotels WHERE address CONTAINS the name (e.g., "Kurunegala").
-    - If `lat/lng` is given: Search within a radius (old behavior).
+    - If `location` is given: Match hotels WHERE location CONTAINS the name (e.g., "Kurunegala")
+    - If `lat/lng` is given: Search within a radius
     """
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
         if location:
-            # Search for hotels WHERE address CONTAINS the location_name (e.g., "Kurunegala")
+            # Search for hotels WHERE location CONTAINS the name (e.g., "Kurunegala")
             query = """
                 SELECT 
                     id, user_id, title, description, image_path, 
@@ -117,14 +117,14 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                 FROM listing
                 WHERE is_approved = 1 
                   AND eco_cert_url IS NOT NULL
-                  AND (location LIKE %s OR location_name LIKE %s)  # Checks both columns
+                  AND location LIKE %s
                 ORDER BY price ASC
                 LIMIT %s
             """
             search_term = f"%{location}%"  # e.g., "%Kurunegala%"
-            cursor.execute(query, (search_term, search_term, MAX_HOTELS_TO_RETURN))
+            cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
         else:
-            # Old coordinate-based search (unchanged)
+            # Coordinate-based search
             query = """
                 SELECT 
                     id, user_id, title, description, image_path, 
