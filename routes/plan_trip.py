@@ -97,7 +97,7 @@ def geocode_location(location_name):
         current_app.logger.error(f"Geocoding error: {str(e)}")
         return None
 
-def find_nearby_hotels(location_name=None, lat=None, lng=None, radius_km=None):
+def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     """
     Query approved eco-certified hotels:
     - If `location_name` is given: Match hotels WHERE address CONTAINS the name (e.g., "Kurunegala").
@@ -107,21 +107,21 @@ def find_nearby_hotels(location_name=None, lat=None, lng=None, radius_km=None):
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        if location_name:
+        if location:
             # Search for hotels WHERE address CONTAINS the location_name (e.g., "Kurunegala")
             query = """
                 SELECT 
                     id, user_id, title, description, image_path, 
                     price, rooms_available, room_details, eco_cert_url,
-                    latitude, longitude, address
+                    latitude, longitude, location
                 FROM listing
                 WHERE is_approved = 1 
                   AND eco_cert_url IS NOT NULL
-                  AND (address LIKE %s OR location_name LIKE %s)  # Checks both columns
+                  AND (location LIKE %s OR location_name LIKE %s)  # Checks both columns
                 ORDER BY price ASC
                 LIMIT %s
             """
-            search_term = f"%{location_name}%"  # e.g., "%Kurunegala%"
+            search_term = f"%{location}%"  # e.g., "%Kurunegala%"
             cursor.execute(query, (search_term, search_term, MAX_HOTELS_TO_RETURN))
         else:
             # Old coordinate-based search (unchanged)
