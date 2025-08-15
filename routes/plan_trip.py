@@ -108,7 +108,7 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
         cursor = conn.cursor(dictionary=True)
 
         if location:
-            # Search for hotels WHERE location CONTAINS the name (e.g., "Kurunegala")
+            # Search for hotels WHERE location CONTAINS the name (case-insensitive)
             query = """
                 SELECT 
                     id, user_id, title, description, image_path, 
@@ -117,11 +117,12 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                 FROM listing
                 WHERE is_approved = 1 
                   AND eco_cert_url IS NOT NULL
-                  AND location LIKE %s
+                  AND LOWER(location) LIKE LOWER(%s)
                 ORDER BY price ASC
                 LIMIT %s
             """
             search_term = f"%{location}%"  # e.g., "%Kurunegala%"
+            current_app.logger.info(f"Searching hotels with location: {search_term}")  # Debug log
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
         else:
             # Coordinate-based search
@@ -144,6 +145,7 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
             cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
 
         hotels = cursor.fetchall()
+        current_app.logger.info(f"Found {len(hotels)} hotels")  # Debug log
         
         for hotel in hotels:
             if 'distance' in hotel:
