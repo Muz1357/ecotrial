@@ -40,34 +40,68 @@ def allowed_file(filename):
 
 @listing_bp.route('/listings', methods=['GET'])
 def get_listings():
-    lat = request.args.get('lat', type=float)
-    lng = request.args.get('lng', type=float)
-    radius_km = request.args.get('radius_km', 5, type=float)
-    
-    connection = get_connection()
-    cursor = connection.cursor(dictionary=True)
+    try:
+        lat = request.args.get('lat', type=float)
+        lng = request.args.get('lng', type=float)
+        radius_km = request.args.get('radius_km', 5, type=float)
+        
+        connection = get_connection()
+        cursor = connection.cursor(dictionary=True)
 
-    if lat and lng:
-        query = """
-        SELECT *,
-        (6371 * acos(
-            cos(radians(%s)) * cos(radians(latitude)) *
-            cos(radians(longitude) - radians(%s)) +
-            sin(radians(%s)) * sin(radians(latitude))
-        )) AS distance
-        FROM listing
-        WHERE is_approved = 1
-        HAVING distance <= %s
-        ORDER BY distance
-        """
-        cursor.execute(query, (lat, lng, lat, radius_km))
-    else:
-        cursor.execute("SELECT * FROM listing WHERE is_approved = 1")
+        if lat and lng:
+            query = """
+            SELECT 
+                id, title, description, price, 
+                rooms_available, room_details, 
+                latitude, longitude, eco_cert_url,
+                (6371 * acos(
+                    cos(radians(%s)) * cos(radians(latitude)) *
+                    cos(radians(longitude) - radians(%s)) +
+                    sin(radians(%s)) * sin(radians(latitude))
+                )) AS distance
+            FROM listing
+            WHERE is_approved = 1
+            AND latitude IS NOT NULL
+            AND longitude IS NOT NULL
+            HAVING distance <= %s
+            ORDER BY distance
+            LIMIT 20
+            """
+            cursor.execute(query, (lat, lng, lat, radius_km))
+        else:
+            cursor.execute("""
+                SELECT * FROM listing 
+                WHERE is_approved = 1
+                AND latitude IS NOT NULL
+                AND longitude IS NOT NULL
+                LIMIT 20
+            """)
 
-    listings = cursor.fetchall()
-    cursor.close()
-    connection.close()
-    return jsonify(listings)
+        listings = cursor.fetchall()
+        
+        # Convert decimal to float for JSON
+        for listing in listings:
+            if 'distance' in listing:
+                listing['distance'] = float(listing['distance'])
+            listing['latitude'] = float(listing['latitude'])
+            listing['longitude'] = float(listing['longitude'])
+        
+        return jsonify({
+            "status": "success",
+            "count": len(listings),
+            "listings": listings
+        })
+        
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+        
+    finally:
+        cursor.close()
+        connection.close()
+
 
 @listing_bp.route('/upload-listing', methods=['POST'])
 def upload_listing():

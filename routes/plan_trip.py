@@ -14,12 +14,12 @@ MAX_HOTELS_TO_RETURN = 20
 
 # CO2 emission factors (kg CO2 per km)
 EMISSION_FACTORS = {
-    'Car': 0.192,    # Average petrol car
+    'Car': 0.192,    
     'bicycling': 0.0,
     'walking': 0.0,
-    'transit': 0.105,    # Average bus/train      
-    'motorcycle': 0.103, # Average motorcycle
-    'electric_car': 0.053 # Electric vehicle
+    'transit': 0.105,       
+    'motorcycle': 0.103, 
+    'electric_car': 0.053 
 }
 
 def haversine_km(lat1, lon1, lat2, lon2):
