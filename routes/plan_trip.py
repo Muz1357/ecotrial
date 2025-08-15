@@ -76,6 +76,27 @@ def decode_polyline(polyline_str):
     
     return coordinates
 
+def geocode_location(location_name):
+    """Convert location name (e.g., 'Pasikuda') to coordinates using Google Geocoding API"""
+    try:
+        params = {
+            'address': location_name,
+            'key': GOOGLE_API_KEY
+        }
+        response = requests.get(
+            "https://maps.googleapis.com/maps/api/geocode/json",
+            params=params,
+            timeout=5
+        )
+        data = response.json()
+        if data['status'] == 'OK' and data['results']:
+            location = data['results'][0]['geometry']['location']
+            return {'lat': location['lat'], 'lng': location['lng']}
+        return None
+    except Exception as e:
+        current_app.logger.error(f"Geocoding error: {str(e)}")
+        return None
+
 def find_nearby_hotels(lat, lng, radius_km):
     """Query database for approved eco-certified hotels near given coordinates"""
     try:
@@ -187,7 +208,21 @@ def plan_trip():
         return jsonify({"error": "Could not calculate any routes"}), 400
     
     # Find approved eco-certified hotels near route midpoint
-    destination_coords = end if isinstance(end, dict) else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
+    if isinstance(end, dict):
+        destination_coords = end
+    elif isinstance(end, str):
+        if ',' in end:  # Coordinates string "lat,lng"
+            try:
+                lat, lng = map(float, end.split(','))
+                destination_coords = {'lat': lat, 'lng': lng}
+            except ValueError:
+                return jsonify({"error": "Invalid coordinate format. Use 'lat,lng'"}), 400
+        else:  # Location name like "Pasikuda"
+            destination_coords = geocode_location(end)
+            if not destination_coords:
+                return jsonify({"error": f"Could not geocode location: {end}"}), 400
+
+    # Find hotels near destination
     hotels = find_nearby_hotels(destination_coords['lat'], destination_coords['lng'], HOTEL_SEARCH_RADIUS_KM)
     
     # Generate recommendations
