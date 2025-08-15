@@ -234,7 +234,7 @@ def plan_trip():
     # Find approved eco-certified hotels near route midpoint
     if isinstance(end, str) and ',' not in end:
         # Try to match hotels by name (e.g., "Kurunegala")
-        hotels = find_nearby_hotels(location_name=end)
+        hotels = find_nearby_hotels(location=end)
         
         # Fallback: If no hotels found, geocode and search by coordinates
         if not hotels:
