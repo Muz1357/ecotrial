@@ -43,7 +43,6 @@ def login():
     email = data.get('email')
     password = data.get('password')
 
-
     user = User.find_by_email(email)
     if not user or not check_password_hash(user.password, password):
         return jsonify({'message': 'Invalid email or password'}), 401
@@ -54,5 +53,5 @@ def login():
         'email': user.email,
         'role': user.role,
         'business_name': user.business_name,
-        'profile_image': user.profile_image,
+        'profile_image': user.profile_image if user.profile_image and user.profile_image != "profile_image" else None
     }), 200
