@@ -114,7 +114,7 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                     id, title, location, is_approved, eco_cert_url,
                     latitude, longitude, price, image_path
                 FROM listing
-                WHERE LOWER(location) LIKE LOWER(%s)
+                WHERE LOWER(location) LIKE LOWER(%kurunrgala%)
                   AND is_approved = 1
                   AND eco_cert_url IS NOT NULL
             """
