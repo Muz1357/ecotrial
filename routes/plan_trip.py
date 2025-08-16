@@ -117,7 +117,6 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                 WHERE LOWER(location) LIKE LOWER(%s)
                   AND is_approved = 1
                   AND eco_cert_url IS NOT NULL
-                LIMIT %s
             """
             search_term = f"%{location}%"
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
@@ -136,7 +135,6 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                 WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
                 HAVING distance < %s
                 ORDER BY distance
-                LIMIT %s
             """
             cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
 
