@@ -41,6 +41,6 @@ class User:
                 role=user_data['role'],
                 created_at=user_data.get('created_at'),
                 business_name=user_data.get('business_name'),
-                profile_image=['profile_image']
+                profile_image=user_data['profile_image']
             )
         return None
