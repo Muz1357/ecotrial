@@ -99,34 +99,40 @@ def geocode_location(location):
 
 def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     """
-    FINAL WORKING VERSION - Query approved eco-certified hotels:
-    - If location is provided: Search by location name (case-insensitive)
-    - If coordinates are provided: Search within radius
+    Improved version of hotel search function
     """
+    conn = None
     try:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
+        # Validate input parameters
+        if location and (lat or lng):
+            current_app.logger.warning("Both location and coordinates provided - using coordinates")
+            location = None
+
         if location:
-            # Location-based search
+            # Location-based search (case-insensitive)
             query = """
                 SELECT 
-                    id, title, location, is_approved, eco_cert_url,
-                    latitude, longitude, price, image_path
+                    id, title, location, description, is_approved, eco_cert_url,
+                    latitude, longitude, price, image_path, rooms_available, currency
                 FROM listing
                 WHERE LOWER(location) LIKE LOWER(%s)
                   AND is_approved = 1
                   AND eco_cert_url IS NOT NULL
+                  AND latitude IS NOT NULL
+                  AND longitude IS NOT NULL
                 LIMIT %s
             """
             search_term = f"%{location}%"
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
-        elif lat and lng and radius_km:
+        elif lat is not None and lng is not None and radius_km:
             # Coordinate-based search
             query = """
                 SELECT 
-                    id, title, location, is_approved, eco_cert_url,
-                    latitude, longitude, price, image_path,
+                    id, title, location, description, is_approved, eco_cert_url,
+                    latitude, longitude, price, image_path, rooms_available, currency,
                     (6371 * acos(
                         cos(radians(%s)) * cos(radians(latitude)) * 
                         cos(radians(longitude) - radians(%s)) + 
@@ -135,34 +141,53 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                 FROM listing
                 WHERE is_approved = 1 
                   AND eco_cert_url IS NOT NULL
+                  AND latitude IS NOT NULL
+                  AND longitude IS NOT NULL
                 HAVING distance < %s
                 ORDER BY distance
                 LIMIT %s
             """
             cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
         else:
+            current_app.logger.error("Invalid parameters for hotel search")
             return []
 
         hotels = cursor.fetchall()
         current_app.logger.info(f"Found {len(hotels)} hotels matching criteria")
         
-        # Convert numeric fields
+        # Convert numeric fields to proper types
+        processed_hotels = []
         for hotel in hotels:
-            if 'distance' in hotel:
-                hotel['distance'] = float(hotel['distance'])
-            if 'latitude' in hotel:
-                hotel['latitude'] = float(hotel['latitude'])
-            if 'longitude' in hotel:
-                hotel['longitude'] = float(hotel['longitude'])
-            if 'price' in hotel:
-                hotel['price'] = float(hotel['price'])
+            try:
+                processed_hotel = {
+                    'id': hotel['id'],
+                    'title': hotel['title'],
+                    'location': hotel['location'],
+                    'description': hotel.get('description'),
+                    'is_approved': bool(hotel['is_approved']),
+                    'eco_cert_url': hotel['eco_cert_url'],
+                    'latitude': float(hotel['latitude']),
+                    'longitude': float(hotel['longitude']),
+                    'price': float(hotel['price']) if hotel['price'] else 0.0,
+                    'image_path': hotel.get('image_path'),
+                    'rooms_available': int(hotel.get('rooms_available', 0)),
+                    'currency': hotel.get('currency', 'USD')
+                }
+                if 'distance' in hotel:
+                    processed_hotel['distance'] = float(hotel['distance'])
+                processed_hotels.append(processed_hotel)
+            except Exception as e:
+                current_app.logger.error(f"Error processing hotel {hotel.get('id')}: {str(e)}")
+                continue
         
-        return hotels
+        return processed_hotels
+
     except Exception as e:
         current_app.logger.error(f"Database error in find_nearby_hotels: {str(e)}")
         return []
     finally:
-        if conn:
+        if conn and conn.is_connected():
+            cursor.close()
             conn.close()
 
 def get_recommendations(routes):
