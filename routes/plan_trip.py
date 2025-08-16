@@ -108,20 +108,20 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
         cursor = conn.cursor(dictionary=True)
 
         if location:
-            # Exact match to the SQL query that works in your database
+            # Location-based search
             query = """
                 SELECT 
                     id, title, location, is_approved, eco_cert_url,
                     latitude, longitude, price, image_path
                 FROM listing
-                WHERE LOWER(location) LIKE LOWER('%kurunrgala%')
-                    AND is_approved = 1
-                    AND eco_cert_url IS NOT NULL
-                LIMIT 20;
+                WHERE LOWER(location) LIKE LOWER(%s)
+                  AND is_approved = 1
+                  AND eco_cert_url IS NOT NULL
+                LIMIT %s
             """
             search_term = f"%{location}%"
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
-        else:
+        elif lat and lng and radius_km:
             # Coordinate-based search
             query = """
                 SELECT 
@@ -133,11 +133,15 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                         sin(radians(%s)) * sin(radians(latitude))
                     )) AS distance
                 FROM listing
-                WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
+                WHERE is_approved = 1 
+                  AND eco_cert_url IS NOT NULL
                 HAVING distance < %s
-                ORDER BY distance;
+                ORDER BY distance
+                LIMIT %s
             """
             cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
+        else:
+            return []
 
         hotels = cursor.fetchall()
         current_app.logger.info(f"Found {len(hotels)} hotels matching criteria")
@@ -160,7 +164,6 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
     finally:
         if conn:
             conn.close()
-
 
 def get_recommendations(routes):
     """Determine the best recommendations from available routes"""
