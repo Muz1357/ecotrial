@@ -54,5 +54,5 @@ def login():
         'email': user.email,
         'role': user.role,
         'business_name': user.business_name,
-        'profile_image': user.profile_image
+        'profile_image': user.profile_image,
     }), 200
