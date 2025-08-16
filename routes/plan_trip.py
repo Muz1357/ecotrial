@@ -114,12 +114,30 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
                     id, title, location, is_approved, eco_cert_url,
                     latitude, longitude, price, image_path
                 FROM listing
-                WHERE LOWER(location) LIKE LOWER(%kurunrgala%)
-                  AND is_approved = 1
-                  AND eco_cert_url IS NOT NULL
+                WHERE LOWER(location) LIKE LOWER('%kurunrgala%')
+                    AND is_approved = 1
+                    AND eco_cert_url IS NOT NULL
+                LIMIT 20;
             """
             search_term = f"%{location}%"
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
+        else:
+            # Coordinate-based search
+            query = """
+                SELECT 
+                    id, title, location, is_approved, eco_cert_url,
+                    latitude, longitude, price, image_path,
+                    (6371 * acos(
+                        cos(radians(%s)) * cos(radians(latitude)) * 
+                        cos(radians(longitude) - radians(%s)) + 
+                        sin(radians(%s)) * sin(radians(latitude))
+                    )) AS distance
+                FROM listing
+                WHERE is_approved = 1 AND eco_cert_url IS NOT NULL
+                HAVING distance < %s
+                ORDER BY distance;
+            """
+            cursor.execute(query, (lat, lng, lat, radius_km, MAX_HOTELS_TO_RETURN))
 
         hotels = cursor.fetchall()
         current_app.logger.info(f"Found {len(hotels)} hotels matching criteria")
