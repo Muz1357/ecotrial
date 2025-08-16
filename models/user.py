@@ -1,7 +1,7 @@
 from models.db import get_connection 
 
 class User:
-    def __init__(self, id, name, email, password, role, created_at=None, business_name=None):
+    def __init__(self, id, name, email, password, role, created_at=None, business_name=None, profile_image =None):
         self.id = id
         self.name = name
         self.email = email
@@ -9,6 +9,7 @@ class User:
         self.role = role
         self.created_at = created_at
         self.business_name = business_name
+        self.profile_image = profile_image
 
     @staticmethod
     def create(name, email, password, role, business_name=None):
@@ -39,6 +40,7 @@ class User:
                 password=user_data['password'],
                 role=user_data['role'],
                 created_at=user_data.get('created_at'),
-                business_name=user_data.get('business_name')
+                business_name=user_data.get('business_name'),
+                profile_image=('profile_image')
             )
         return None
