@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Community Experience Detail</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <style>
+    body {
+      background: linear-gradient(to bottom right, #6BC6E4 40%, #ffffff 40%);
+      min-height: 100vh;
+      margin: 0;
+      padding-top: 70px;
+    }
+
+    .app-bar {
+      background-color: #007B9E;
+      color: white;
+      padding: 1rem 2rem;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 1000;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .card {
+      border-radius: 20px;
+    }
+
+    .card-title {
+      color: #007B9E;
+      font-weight: 600;
+    }
+
+    .certificate-link {
+      font-size: 0.9rem;
+      text-decoration: underline;
+      color: #007B9E;
+    }
+
+    img.experience-image {
+      max-height: 300px;
+      width: 100%;
+      object-fit: cover;
+      border-radius: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Bar -->
+  <div class="app-bar d-flex justify-content-between align-items-center">
+    <h4 class="mb-0">Community Experience Detail</h4>
+    <a href="{{ url_for('admin.pending_community_experiences') }}" class="btn btn-light btn-sm">Back</a>
+  </div>
+
+  <div class="container mt-4">
+    <div class="card p-4 shadow-sm">
+      <h3 class="card-title mb-3">{{ experience.title }}</h3>
+
+      <!-- Image -->
+      {% if experience.image_path %}
+        <img src="{{ experience.image_path }}" alt="Experience Image" class="experience-image mb-3">
+      {% endif %}
+
+      <p><strong>Category:</strong> {{ experience.category }}</p>
+      <p><strong>Location:</strong> {{ experience.location }}</p>
+      <p><strong>Latitude / Longitude:</strong> {{ experience.latitude }}, {{ experience.longitude }}</p>
+      <p><strong>Price:</strong> ${{ experience.price }}</p>
+      <p><strong>Impact Note:</strong> {{ experience.impact_note }}</p>
+      <p><strong>Weather Type:</strong> {{ experience.weather_type }}</p>
+      <p><strong>Contact Info:</strong> {{ experience.contact_info }}</p>
+
+      <!-- Certificate -->
+      {% if experience.certificate_path %}
+        <p><a href="{{ experience.certificate_path }}" target="_blank" class="certificate-link">View Certificate</a></p>
+      {% endif %}
+
+      <a href="{{ url_for('admin.view_community_experience', exp_id=exp.id) }}" 
+             class="btn btn-primary btn-sm mt-2">View Details</a>
+
+      <!-- Approve / Decline Buttons -->
+      <div class="d-flex justify-content-start mt-3">
+        <form action="{{ url_for('admin.approve_community_experience', exp_id=experience.id) }}" method="post" class="me-2">
+          <button type="submit" class="btn btn-success">Approve</button>
+        </form>
+        <form action="{{ url_for('admin.decline_community_experience', exp_id=experience.id) }}" method="post">
+          <button type="submit" class="btn btn-danger">Decline</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

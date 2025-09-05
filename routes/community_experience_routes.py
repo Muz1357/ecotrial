@@ -17,17 +17,27 @@ def haversine(lon1, lat1, lon2, lat2):
 @community_bp.route("/community-experiences", methods=["POST"])
 def create_experience():
     try:
+        # Required fields
         title = request.form.get("title")
         category = request.form.get("category")
         if not title or not category:
             return jsonify({"error": "title and category required"}), 400
 
+        # Image upload
         image_path = None
         if "image" in request.files:
             file = request.files["image"]
             upload_res = cloudinary.uploader.upload(file, folder="community_experiences")
             image_path = upload_res.get("secure_url")
 
+        # Certificate upload
+        certificate_path = None
+        if "certificate" in request.files:
+            file = request.files["certificate"]
+            upload_res = cloudinary.uploader.upload(file, folder="community_experiences/certificates")
+            certificate_path = upload_res.get("secure_url")
+
+        # Create experience
         exp_id = CommunityExperience.create({
             "title": title,
             "description": request.form.get("description"),
@@ -37,8 +47,9 @@ def create_experience():
             "longitude": request.form.get("longitude"),
             "price": request.form.get("price"),
             "image_path": image_path,
+            "certificate_path": certificate_path,
             "impact_note": request.form.get("impact_note"),
-            "weather_type": request.form.get("weather_type"),
+            "weather_type": request.form.get("weather_type") or "Both",
             "contact_info": request.form.get("contact_info")
         })
 
@@ -62,14 +73,14 @@ def get_experience(exp_id):
         return jsonify({"error": "Not found"}), 404
     return jsonify(exp.to_dict())
 
-# --- Nearby ---
+# --- Nearby experiences ---
 @community_bp.route("/community-experiences/nearby", methods=["GET"])
 def nearby_experiences():
     lat, lng = request.args.get("lat", type=float), request.args.get("lng", type=float)
     radius = request.args.get("radius_km", type=float, default=5)
     weather = request.args.get("weather")
 
-    if not lat or not lng:
+    if lat is None or lng is None:
         return jsonify({"error": "lat and lng required"}), 400
 
     items = CommunityExperience.get_all()
@@ -86,7 +97,7 @@ def nearby_experiences():
 
     return jsonify(sorted(results, key=lambda x: x["distance_km"]))
 
-
+# --- Approve / Unapprove experience ---
 @community_bp.route("/admin/community-experiences/<int:exp_id>/approve", methods=["PUT"])
 def approve_experience(exp_id):
     approved = request.json.get("approved", True)

@@ -3,8 +3,8 @@ from datetime import datetime
 
 class CommunityExperience:
     def __init__(self, id, title, description, category, location, latitude,
-                 longitude, price, image_path, impact_note, weather_type,
-                 contact_info, approved, created_at, updated_at):
+                 longitude, price, image_path, certificate_path, impact_note,
+                 weather_type, contact_info, approved, created_at, updated_at):
         self.id = id
         self.title = title
         self.description = description
@@ -14,6 +14,7 @@ class CommunityExperience:
         self.longitude = longitude
         self.price = price
         self.image_path = image_path
+        self.certificate_path = certificate_path
         self.impact_note = impact_note
         self.weather_type = weather_type
         self.contact_info = contact_info
@@ -32,6 +33,7 @@ class CommunityExperience:
             "longitude": self.longitude,
             "price": float(self.price) if self.price else None,
             "image_path": self.image_path,
+            "certificate_path": self.certificate_path,
             "impact_note": self.impact_note,
             "weather_type": self.weather_type,
             "contact_info": self.contact_info,
@@ -47,8 +49,8 @@ class CommunityExperience:
         cursor.execute("""
             INSERT INTO community_experience 
             (title, description, category, location, latitude, longitude, price,
-             image_path, impact_note, weather_type, contact_info, approved, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+             image_path, certificate_path, impact_note, weather_type, contact_info, approved, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         """, (
             data.get("title"),
             data.get("description"),
@@ -58,6 +60,7 @@ class CommunityExperience:
             data.get("longitude"),
             data.get("price"),
             data.get("image_path"),
+            data.get("certificate_path"),
             data.get("impact_note"),
             data.get("weather_type") or "Both",
             data.get("contact_info"),
