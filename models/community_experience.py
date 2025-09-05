@@ -1,5 +1,30 @@
 from models.db import get_connection
 from datetime import datetime
+import os
+import requests
+
+GOOGLE_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs')
+
+
+def geocode_location(address):
+    """Convert address text into latitude/longitude using Google Maps API"""
+    if not GOOGLE_API_KEY or not address:
+        return None, None
+
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
+    params = {"address": address, "key": GOOGLE_API_KEY}
+
+    try:
+        resp = requests.get(url, params=params)
+        data = resp.json()
+        if data.get("status") == "OK" and len(data["results"]) > 0:
+            loc = data["results"][0]["geometry"]["location"]
+            return loc["lat"], loc["lng"]
+    except Exception as e:
+        print("Geocoding error:", e)
+
+    return None, None
+
 
 class CommunityExperience:
     def __init__(self, id, title, description, category, location, latitude,
@@ -106,8 +131,21 @@ class CommunityExperience:
     @staticmethod
     def approve(exp_id, approved=True):
         conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE community_experience SET approved=%s WHERE id=%s", (approved, exp_id))
+        cursor = conn.cursor(dictionary=True)
+
+        # get current location string
+        cursor.execute("SELECT location FROM community_experience WHERE id=%s", (exp_id,))
+        row = cursor.fetchone()
+
+        lat, lng = (None, None)
+        if row and row.get("location"):
+            lat, lng = geocode_location(row["location"])
+
+        cursor.execute("""
+            UPDATE community_experience 
+            SET approved=%s, latitude=%s, longitude=%s, updated_at=NOW()
+            WHERE id=%s
+        """, (approved, lat, lng, exp_id))
         conn.commit()
         cursor.close()
         conn.close()
