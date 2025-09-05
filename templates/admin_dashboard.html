@@ -45,8 +45,8 @@
 
   <div class="container mt-4">
 
-    <!-- Pending Listings Only -->
-    <div>
+    <!-- Pending Listings -->
+    <div class="mb-5">
       <h5 class="text-dark mb-3">Pending Listings</h5>
       {% if pending_listings %}
         <div class="row">
@@ -55,6 +55,14 @@
             <div class="card p-3 shadow-sm">
               <h6 class="card-title">{{ listing.title }}</h6>
               <a href="{{ url_for('admin.view_listing_detail', listing_id=listing.id) }}" class="btn btn-primary btn-sm mt-2">View Details</a>
+
+              <form action="{{ url_for('admin.approve_listing_web', listing_id=listing.id) }}" method="POST" class="d-inline mt-2">
+                <button type="submit" class="btn btn-success btn-sm">Approve</button>
+              </form>
+
+              <form action="{{ url_for('admin.decline_listing_web', listing_id=listing.id) }}" method="POST" class="d-inline mt-2">
+                <button type="submit" class="btn btn-danger btn-sm">Decline</button>
+              </form>
             </div>
           </div>
           {% endfor %}
@@ -64,5 +72,36 @@
       {% endif %}
     </div>
 
+    <!-- Pending Community Experiences -->
+    <div class="mb-5">
+      <h5 class="text-dark mb-3">Pending Community Experiences</h5>
+      {% if pending_communities %}
+        <div class="row">
+          {% for community in pending_communities %}
+          <div class="col-md-6 mb-3">
+            <div class="card p-3 shadow-sm">
+              <h6 class="card-title">{{ community.title }}</h6>
+              <p class="text-muted">{{ community.category }}</p>
+
+              <a href="{{ url_for('admin.view_community_detail', exp_id=community.id) }}" class="btn btn-primary btn-sm mt-2">View Details</a>
+
+              <form action="{{ url_for('admin.approve_community', exp_id=community.id) }}" method="POST" class="d-inline mt-2">
+                <input type="hidden" name="approved" value="true">
+                <button type="submit" class="btn btn-success btn-sm">Approve</button>
+              </form>
+
+              <form action="{{ url_for('admin.decline_community', exp_id=community.id) }}" method="POST" class="d-inline mt-2">
+                <button type="submit" class="btn btn-danger btn-sm">Decline</button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-muted">No pending community experiences.</p>
+      {% endif %}
+    </div>
+
+  </div>
 </body>
 </html>
