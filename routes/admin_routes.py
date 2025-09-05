@@ -25,7 +25,6 @@ def admin_dashboard():
 
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
-            # Business owner approval removed – no need to fetch pending users
             cursor.execute("SELECT id, title FROM listing WHERE is_approved=FALSE")
             pending_listings = cursor.fetchall()
 
