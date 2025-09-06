@@ -1,13 +1,13 @@
 from flask import Blueprint, request, jsonify
 from models.community_experience import CommunityExperience
-from datetime import datetime
+from datetime import datetime, timedelta
 import os, cloudinary.uploader, requests
 from models.db import get_connection 
 from math import radians, cos, sin, asin, sqrt
 
 community_bp = Blueprint("community_experience", __name__)
 
-# Google Maps API Key (set in .env or system environment)
+# Google Maps API Key
 GOOGLE_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs')
 
 # Utility: haversine distance
@@ -17,14 +17,12 @@ def haversine(lon1, lat1, lon2, lat2):
     a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     return 6371 * 2 * asin(sqrt(a))  # km
 
-
 # Utility: geocode location string
 def geocode_location(title, location_name):
     if not GOOGLE_API_KEY:
         raise ValueError("Google Maps API key not configured")
 
     full_address = f"{title}, {location_name}"
-
     url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {"address": full_address, "key": GOOGLE_API_KEY}
     res = requests.get(url, params=params).json()
@@ -35,18 +33,15 @@ def geocode_location(title, location_name):
     coords = res["results"][0]["geometry"]["location"]
     return coords["lat"], coords["lng"]
 
-
 # --- Create experience ---
 @community_bp.route("/community-experiences", methods=["POST"])
 def create_experience():
     try:
-        # Required fields
         title = request.form.get("title")
-        category = request.form.get("category")
         location_name = request.form.get("location")
 
-        if not title or not category or not location_name:
-            return jsonify({"error": "title, category and location required"}), 400
+        if not title or not location_name:
+            return jsonify({"error": "title and location required"}), 400
 
         # Geocode the location
         latitude, longitude = geocode_location(title, location_name)
@@ -71,14 +66,12 @@ def create_experience():
         exp_id = CommunityExperience.create({
             "title": title,
             "description": request.form.get("description"),
-            "category": category,
             "location": location_name,
             "latitude": latitude,
             "longitude": longitude,
             "price": request.form.get("price"),
             "image_path": image_path,
             "certificate_path": certificate_path,
-            "impact_note": request.form.get("impact_note"),
             "weather_type": request.form.get("weather_type") or "Both",
             "contact_info": request.form.get("contact_info"),
         })
@@ -87,15 +80,12 @@ def create_experience():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 # --- List experiences ---
 @community_bp.route("/community-experiences", methods=["GET"])
 def list_experiences():
-    category = request.args.get("category")
     only_approved = request.args.get("approved", "true").lower() == "true"
-    items = CommunityExperience.get_all(category, only_approved)
+    items = CommunityExperience.get_all(only_approved=only_approved)
     return jsonify(items)
-
 
 # --- Get one ---
 @community_bp.route("/community-experiences/<int:exp_id>", methods=["GET"])
@@ -104,7 +94,6 @@ def get_experience(exp_id):
     if not exp or not exp.approved:
         return jsonify({"error": "Not found"}), 404
     return jsonify(exp.to_dict())
-
 
 # --- Nearby experiences ---
 @community_bp.route("/community-experiences/nearby", methods=["GET"])
@@ -131,11 +120,11 @@ def nearby_experiences():
 
     return jsonify(sorted(results, key=lambda x: x["distance_km"]))
 
+# --- Book experience ---
 @community_bp.route("/community-experiences/<int:exp_id>/book", methods=["POST"])
 def book_experience(exp_id):
     data = request.get_json()
     user_id = data.get("user_id")
-
     if not user_id:
         return jsonify({"error": "user_id required"}), 400
 
@@ -160,6 +149,43 @@ def approve_experience(exp_id):
     CommunityExperience.approve(exp_id, approved)
     return jsonify({"message": f"Experience {'approved' if approved else 'unapproved'}"})
 
+# --- List bookings ---
+@community_bp.route("/community-bookings/<int:booking_id>/cancel", methods=["POST"])
+def cancel_community_booking(booking_id):
+    with get_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            # fetch booking date and status
+            cursor.execute("SELECT booking_date, status FROM community_booking WHERE id=%s", (booking_id,))
+            booking = cursor.fetchone()
+            
+            if not booking:
+                return jsonify({"error": "Booking not found"}), 404
+
+            # check if already cancelled or finished
+            if booking['status'] in ('cancelled', 'finished'):
+                return jsonify({"error": f"Cannot cancel a {booking['status']} booking"}), 400
+
+            # check 3-hour window
+            now = datetime.now()
+            booking_time = booking['booking_date']
+            if isinstance(booking_time, str):
+                booking_time = datetime.fromisoformat(booking_time)  # convert if string
+
+            if now > booking_time + timedelta(hours=3):
+                return jsonify({"error": "Cancellation period (3 hours) expired"}), 400
+
+            # cancel booking
+            cursor.execute("""
+                UPDATE community_booking
+                SET status = 'cancelled'
+                WHERE id = %s
+            """, (booking_id,))
+            conn.commit()
+
+    return jsonify({"message": "Community booking cancelled"})
+
+
+# --- List bookings (update expired bookings to finished) ---
 @community_bp.route("/community-bookings", methods=["GET"])
 def list_community_bookings():
     user_id = request.args.get("user_id")
@@ -168,6 +194,16 @@ def list_community_bookings():
 
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
+            # Update expired bookings (older than 1 day) to 'finished'
+            cursor.execute("""
+                UPDATE community_booking
+                SET status = 'finished'
+                WHERE booking_date <= NOW() - INTERVAL 1 DAY
+                  AND status NOT IN ('cancelled', 'finished')
+            """)
+            conn.commit()
+
+            # Fetch user's bookings
             cursor.execute("""
                 SELECT cb.id AS booking_id,
                        cb.experience_id,
@@ -187,17 +223,3 @@ def list_community_bookings():
             bookings = cursor.fetchall()
 
     return jsonify(bookings)
-
-@community_bp.route("/community-bookings/<int:booking_id>/cancel", methods=["POST"])
-def cancel_community_booking(booking_id):
-    with get_connection() as conn:
-        with conn.cursor() as cursor:
-            cursor.execute("""
-                UPDATE community_booking
-                SET status = 'cancelled'
-                WHERE id = %s
-            """, (booking_id,))
-            conn.commit()
-
-    return jsonify({"message": "Community booking cancelled"})
-
