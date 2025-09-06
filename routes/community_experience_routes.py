@@ -159,3 +159,45 @@ def approve_experience(exp_id):
     approved = request.json.get("approved", True)
     CommunityExperience.approve(exp_id, approved)
     return jsonify({"message": f"Experience {'approved' if approved else 'unapproved'}"})
+
+@community_bp.route("/community-bookings", methods=["GET"])
+def list_community_bookings():
+    user_id = request.args.get("user_id")
+    if not user_id:
+        return jsonify({"error": "user_id required"}), 400
+
+    with get_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute("""
+                SELECT cb.id AS booking_id,
+                       cb.experience_id,
+                       cb.booking_date,
+                       cb.status,
+                       ce.title,
+                       ce.description,
+                       ce.price,
+                       ce.location,
+                       ce.latitude,
+                       ce.longitude
+                FROM community_booking cb
+                JOIN community_experience ce ON cb.experience_id = ce.id
+                WHERE cb.user_id = %s
+                ORDER BY cb.booking_date DESC
+            """, (user_id,))
+            bookings = cursor.fetchall()
+
+    return jsonify(bookings)
+
+@community_bp.route("/community-bookings/<int:booking_id>/cancel", methods=["POST"])
+def cancel_community_booking(booking_id):
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE community_booking
+                SET status = 'cancelled'
+                WHERE id = %s
+            """, (booking_id,))
+            conn.commit()
+
+    return jsonify({"message": "Community booking cancelled"})
+
