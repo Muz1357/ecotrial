@@ -33,12 +33,6 @@
       color: #007B9E;
       font-weight: 600;
     }
-
-    .certificate-link {
-      font-size: 0.9rem;
-      text-decoration: underline;
-      color: #007B9E;
-    }
   </style>
 </head>
 <body>
@@ -60,7 +54,10 @@
           <div class="col-md-6 mb-3">
             <div class="card p-3 shadow-sm">
               <h6 class="card-title">{{ listing.title }}</h6>
-              <a href="{{ url_for('admin.view_listing_detail', listing_id=listing.id) }}" class="btn btn-primary btn-sm mt-2">View Details</a>
+              <div class="d-flex justify-content-end mt-2">
+                <a href="{{ url_for('admin.view_listing_detail', listing_id=listing.id) }}" 
+                   class="btn btn-primary btn-sm">View Details</a>
+              </div>
             </div>
           </div>
           {% endfor %}
@@ -79,19 +76,9 @@
           <div class="col-md-6 mb-3">
             <div class="card p-3 shadow-sm">
               <h6 class="card-title">{{ exp.title }}</h6>
-              <p><strong>Category:</strong> {{ exp.category }}</p>
-              <p><strong>Location:</strong> {{ exp.location }}</p>
-              <p><strong>Price:</strong> ${{ exp.price }}</p>
-              {% if exp.certificate_path %}
-                <p><a href="{{ exp.certificate_path }}" target="_blank" class="certificate-link">View Certificate</a></p>
-              {% endif %}
-              <div class="d-flex justify-content-between mt-2">
-                <form action="{{ url_for('admin.approve_community_experience', exp_id=exp.id) }}" method="post">
-                  <button type="submit" class="btn btn-success btn-sm">Approve</button>
-                </form>
-                <form action="{{ url_for('admin.decline_community_experience', exp_id=exp.id) }}" method="post">
-                  <button type="submit" class="btn btn-danger btn-sm">Decline</button>
-                </form>
+              <div class="d-flex justify-content-end mt-2">
+                <a href="{{ url_for('admin.view_community_experience_detail', exp_id=exp.id) }}" 
+                   class="btn btn-primary btn-sm">View Details</a>
               </div>
             </div>
           </div>
