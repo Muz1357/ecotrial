@@ -36,7 +36,7 @@ def admin_dashboard():
 
             # Pending community experiences
             cursor.execute("""
-                SELECT id, title, category, location, price, certificate_path
+                SELECT id, title, location, price, certificate_path
                 FROM community_experience 
                 WHERE approved = 0
             """)
