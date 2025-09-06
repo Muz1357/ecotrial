@@ -48,7 +48,7 @@ def create_experience():
             return jsonify({"error": "title, category and location required"}), 400
 
         # Geocode the location
-        latitude, longitude = geocode_location(location_name)
+        latitude, longitude = geocode_location(title, location_name)
         if latitude is None or longitude is None:
             return jsonify({"error": "Could not geocode location"}), 400
 
