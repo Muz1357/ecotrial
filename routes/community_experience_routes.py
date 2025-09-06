@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from models.community_experience import CommunityExperience
 from datetime import datetime
 import os, cloudinary.uploader, requests
+from models.db import get_connection 
 from math import radians, cos, sin, asin, sqrt
 
 community_bp = Blueprint("community_experience", __name__)
@@ -130,6 +131,27 @@ def nearby_experiences():
 
     return jsonify(sorted(results, key=lambda x: x["distance_km"]))
 
+@community_bp.route("/community-experiences/<int:exp_id>/book", methods=["POST"])
+def book_experience(exp_id):
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    if not user_id:
+        return jsonify({"error": "user_id required"}), 400
+
+    with get_connection() as conn:
+        with conn.cursor(dictionary=True) as cursor:
+            cursor.execute("""
+                INSERT INTO community_booking (user_id, experience_id)
+                VALUES (%s, %s)
+            """, (user_id, exp_id))
+            conn.commit()
+            booking_id = cursor.lastrowid
+
+    return jsonify({
+        "booking_id": booking_id,
+        "message": "Booking successful"
+    }), 201
 
 # --- Approve / Unapprove experience ---
 @community_bp.route("/admin/community-experiences/<int:exp_id>/approve", methods=["PUT"])
