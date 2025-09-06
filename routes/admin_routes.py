@@ -1,20 +1,19 @@
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for, session, flash
 from models.db import get_connection
-from models.community_experience import CommunityExperience
 import os
 import requests
-
 
 admin_bp = Blueprint('admin', __name__)
 
 GOOGLE_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs')
 
+# --- Admin Login ---
 @admin_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
-        if username == 'admin' and password == 'admin123':  
+        if username == 'admin' and password == 'admin123':
             session['admin_logged_in'] = True
             return redirect(url_for('admin.admin_dashboard'))
         else:
@@ -22,6 +21,8 @@ def admin_login():
             return render_template('admin_login.html', error="Invalid username or password")
     return render_template('admin_login.html')
 
+
+# --- Dashboard (listings + community experiences) ---
 @admin_bp.route('/admin/dashboard')
 def admin_dashboard():
     if not session.get('admin_logged_in'):
@@ -29,11 +30,26 @@ def admin_dashboard():
 
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
+            # Pending listings
             cursor.execute("SELECT id, title FROM listing WHERE is_approved=FALSE")
             pending_listings = cursor.fetchall()
 
-    return render_template('admin_dashboard.html', pending_listings=pending_listings)
+            # Pending community experiences
+            cursor.execute("""
+                SELECT id, title, category, location, price, certificate_path
+                FROM community_experience 
+                WHERE approved = 0
+            """)
+            pending_experiences = cursor.fetchall()
 
+    return render_template(
+        'admin_dashboard.html',
+        pending_listings=pending_listings,
+        pending_experiences=pending_experiences
+    )
+
+
+# --- Approve Listing ---
 @admin_bp.route('/admin/approve-listing/<int:listing_id>', methods=['POST'])
 def approve_listing_web(listing_id):
     if not session.get('admin_logged_in'):
@@ -46,6 +62,8 @@ def approve_listing_web(listing_id):
     flash('Listing approved successfully.')
     return redirect(url_for('admin.admin_dashboard'))
 
+
+# --- Decline Listing ---
 @admin_bp.route('/admin/decline-listing/<int:listing_id>', methods=['POST'])
 def decline_listing_web(listing_id):
     if not session.get('admin_logged_in'):
@@ -58,6 +76,8 @@ def decline_listing_web(listing_id):
     flash('Listing declined and removed.')
     return redirect(url_for('admin.admin_dashboard'))
 
+
+# --- View Listing Detail ---
 @admin_bp.route('/admin/listing/<int:listing_id>')
 def view_listing_detail(listing_id):
     if not session.get('admin_logged_in'):
@@ -74,6 +94,8 @@ def view_listing_detail(listing_id):
 
     return render_template('listing_detail.html', listing=listing)
 
+
+# --- Geocoding Helper ---
 def geocode_location(address):
     """Convert address text into latitude/longitude using Google Maps API"""
     if not GOOGLE_API_KEY:
@@ -94,28 +116,7 @@ def geocode_location(address):
     return None, None
 
 
-@admin_bp.route('/admin/community-experiences')
-def pending_community_experiences():
-    if not session.get('admin_logged_in'):
-        return redirect(url_for('admin.admin_login'))
-
-    with get_connection() as conn:
-        with conn.cursor(dictionary=True) as cursor:
-            cursor.execute("""
-                SELECT id, title, category, location, price, certificate_path
-                FROM community_experience 
-                WHERE approved = 0
-            """)
-            pending_experiences = cursor.fetchall()
-
-    return render_template(
-        'admin_dashboard.html',
-        pending_experiences=pending_experiences
-    )
-
-
-
-# --- Approve community experience ---
+# --- Approve Community Experience ---
 @admin_bp.route('/admin/community-experiences/<int:exp_id>/approve', methods=['POST'])
 def approve_community_experience(exp_id):
     if not session.get('admin_logged_in'):
@@ -140,10 +141,10 @@ def approve_community_experience(exp_id):
             conn.commit()
 
     flash('Community experience approved successfully (geocoded).')
-    return redirect(url_for('admin.pending_community_experiences'))
+    return redirect(url_for('admin.admin_dashboard'))
 
 
-# --- Decline / Delete community experience ---
+# --- Decline Community Experience ---
 @admin_bp.route('/admin/community-experiences/<int:exp_id>/decline', methods=['POST'])
 def decline_community_experience(exp_id):
     if not session.get('admin_logged_in'):
@@ -155,10 +156,10 @@ def decline_community_experience(exp_id):
             conn.commit()
 
     flash('Community experience declined and removed.')
-    return redirect(url_for('admin.pending_community_experiences'))
+    return redirect(url_for('admin.admin_dashboard'))
 
 
-# --- View details of a community experience ---
+# --- View Community Experience Detail ---
 @admin_bp.route('/admin/community-experiences/<int:exp_id>')
 def view_community_experience(exp_id):
     if not session.get('admin_logged_in'):
@@ -171,10 +172,12 @@ def view_community_experience(exp_id):
 
     if not exp:
         flash("Community experience not found.")
-        return redirect(url_for('admin.pending_community_experiences'))
+        return redirect(url_for('admin.admin_dashboard'))
 
     return render_template('community_experience_detail.html', experience=exp)
 
+
+# --- Logout ---
 @admin_bp.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged_in', None)
