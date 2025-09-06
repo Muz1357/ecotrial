@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify
+import pytz
 from models.community_experience import CommunityExperience
 from datetime import datetime, timedelta
 import os, cloudinary.uploader, requests
 from models.db import get_connection 
 from math import radians, cos, sin, asin, sqrt
+from models.eco_points import EcoPoints
 
 community_bp = Blueprint("community_experience", __name__)
 
@@ -128,19 +130,41 @@ def book_experience(exp_id):
     if not user_id:
         return jsonify({"error": "user_id required"}), 400
 
-    with get_connection() as conn:
-        with conn.cursor(dictionary=True) as cursor:
-            cursor.execute("""
-                INSERT INTO community_booking (user_id, experience_id)
-                VALUES (%s, %s)
-            """, (user_id, exp_id))
-            conn.commit()
-            booking_id = cursor.lastrowid
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        # Insert booking
+        cursor.execute("""
+            INSERT INTO community_booking (user_id, experience_id, booking_date, status)
+            VALUES (%s, %s, NOW(), 'booked')
+        """, (user_id, exp_id))
+        conn.commit()
+        booking_id = cursor.lastrowid
 
-    return jsonify({
-        "booking_id": booking_id,
-        "message": "Booking successful"
-    }), 201
+        # Award 10 eco points
+        points_earned = 10
+        EcoPoints.adjust_balance(user_id, points_earned)
+        EcoPoints.create_transaction(
+            user_id,
+            points_earned,
+            'earn',
+            booking_id,
+            f"Earned {points_earned} points for booking community experience #{exp_id}"
+        )
+
+        return jsonify({
+            "booking_id": booking_id,
+            "points_earned": points_earned,
+            "message": "Booking successful"
+        }), 201
+
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": "Failed to book experience", "details": str(e)}), 500
+    finally:
+        cursor.close()
+        conn.close()
+
 
 # --- Approve / Unapprove experience ---
 @community_bp.route("/admin/community-experiences/<int:exp_id>/approve", methods=["PUT"])
@@ -150,39 +174,64 @@ def approve_experience(exp_id):
     return jsonify({"message": f"Experience {'approved' if approved else 'unapproved'}"})
 
 # --- List bookings ---
+# --- Cancel booking (revert 10 points) ---
 @community_bp.route("/community-bookings/<int:booking_id>/cancel", methods=["POST"])
 def cancel_community_booking(booking_id):
-    with get_connection() as conn:
-        with conn.cursor(dictionary=True) as cursor:
-            # fetch booking date and status
-            cursor.execute("SELECT booking_date, status FROM community_booking WHERE id=%s", (booking_id,))
-            booking = cursor.fetchone()
-            
-            if not booking:
-                return jsonify({"error": "Booking not found"}), 404
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    
+    try:
+        # Fetch booking info
+        cursor.execute(
+            "SELECT * FROM community_booking WHERE id = %s AND status NOT IN ('cancelled', 'finished')",
+            (booking_id,)
+        )
+        booking = cursor.fetchone()
+        
+        if not booking:
+            return jsonify({"error": "Booking not found or already cancelled/finished"}), 404
 
-            # check if already cancelled or finished
-            if booking['status'] in ('cancelled', 'finished'):
-                return jsonify({"error": f"Cannot cancel a {booking['status']} booking"}), 400
+        # Ensure booking_date is aware UTC
+        booking_time = booking['booking_date']
+        if isinstance(booking_time, str):
+            booking_time = datetime.fromisoformat(booking_time)
+        if booking_time.tzinfo is None:
+            booking_time = booking_time.replace(tzinfo=pytz.utc)
+        
+        now = datetime.now(pytz.utc)
+        if (now - booking_time).total_seconds() > 3 * 3600:
+            return jsonify({"error": "Cancellation window expired (3 hours)."}), 403
 
-            # check 3-hour window
-            now = datetime.now()
-            booking_time = booking['booking_date']
-            if isinstance(booking_time, str):
-                booking_time = datetime.fromisoformat(booking_time)  # convert if string
+        # Mark booking as cancelled
+        cursor.execute(
+            "UPDATE community_booking SET status = 'cancelled' WHERE id = %s",
+            (booking_id,)
+        )
 
-            if now > booking_time + timedelta(hours=3):
-                return jsonify({"error": "Cancellation period (3 hours) expired"}), 400
+        # Revert earned points (10 per booking)
+        tourist_id = booking.get('user_id')
+        if tourist_id:
+            points_earned = 10
+            EcoPoints.adjust_balance(tourist_id, -points_earned)
+            EcoPoints.create_transaction(
+                tourist_id,
+                points_earned,
+                'revert',
+                booking_id,
+                f"Reverted {points_earned} points from cancelled community booking #{booking_id}"
+            )
 
-            # cancel booking
-            cursor.execute("""
-                UPDATE community_booking
-                SET status = 'cancelled'
-                WHERE id = %s
-            """, (booking_id,))
-            conn.commit()
+        conn.commit()
+        return jsonify({"message": "Community booking cancelled successfully"}), 200
 
-    return jsonify({"message": "Community booking cancelled"})
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"error": "Failed to cancel community booking", "details": str(e)}), 500
+
+    finally:
+        cursor.close()
+        conn.close()
+
 
 
 # --- List bookings (update expired bookings to finished) ---
@@ -221,5 +270,9 @@ def list_community_bookings():
                 ORDER BY cb.booking_date DESC
             """, (user_id,))
             bookings = cursor.fetchall()
+
+            # Add points info
+            for b in bookings:
+                b["points_earned"] = 10 if b["status"] == "booked" else 0
 
     return jsonify(bookings)
