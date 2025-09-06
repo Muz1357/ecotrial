@@ -59,8 +59,8 @@ def create_experience():
 
         # Certificate upload
         certificate_path = None
-        if "certificate" in request.files:
-            file = request.files["certificate"]
+        if "eco_cert" in request.files:
+            file = request.files["eco_cert"]
             upload_res = cloudinary.uploader.upload(file, folder="community_experiences/certificates")
             certificate_path = upload_res.get("secure_url")
 
