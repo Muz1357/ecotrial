@@ -122,7 +122,6 @@ def nearby_experiences():
 
     return jsonify(sorted(results, key=lambda x: x["distance_km"]))
 
-# --- Book experience ---
 @community_bp.route("/community-experiences/<int:exp_id>/book", methods=["POST"])
 def book_experience(exp_id):
     data = request.get_json()
@@ -133,11 +132,13 @@ def book_experience(exp_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
-        # Insert booking
+        # Use UTC-aware booking date
+        booking_date_utc = datetime.now(pytz.utc).strftime("%Y-%m-%d %H:%M:%S")
+
         cursor.execute("""
             INSERT INTO community_booking (user_id, experience_id, booking_date, status)
-            VALUES (%s, %s, NOW(), 'booked')
-        """, (user_id, exp_id))
+            VALUES (%s, %s, %s, 'booked')
+        """, (user_id, exp_id, booking_date_utc))
         conn.commit()
         booking_id = cursor.lastrowid
 
