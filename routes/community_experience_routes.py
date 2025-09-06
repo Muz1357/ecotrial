@@ -18,12 +18,14 @@ def haversine(lon1, lat1, lon2, lat2):
 
 
 # Utility: geocode location string
-def geocode_location(location_name):
+def geocode_location(title, location_name):
     if not GOOGLE_API_KEY:
         raise ValueError("Google Maps API key not configured")
 
+    full_address = f"{title}, {location_name}"
+
     url = "https://maps.googleapis.com/maps/api/geocode/json"
-    params = {"address": location_name, "key": GOOGLE_API_KEY}
+    params = {"address": full_address, "key": GOOGLE_API_KEY}
     res = requests.get(url, params=params).json()
 
     if res.get("status") != "OK" or not res.get("results"):

@@ -124,15 +124,15 @@ def approve_community_experience(exp_id):
 
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
-            # fetch location text
-            cursor.execute("SELECT location FROM community_experience WHERE id=%s", (exp_id,))
+            
+            cursor.execute("SELECT title, location FROM community_experience WHERE id=%s", (exp_id,))
             exp = cursor.fetchone()
 
             lat, lng = (None, None)
             if exp and exp["location"]:
-                lat, lng = geocode_location(exp["location"])
+                full_address = f"{exp['title']}, {exp['location']}"
+                lat, lng = geocode_location(full_address)
 
-            # approve + save geocoded lat/lng
             cursor.execute("""
                 UPDATE community_experience
                 SET approved = 1, latitude = %s, longitude = %s
