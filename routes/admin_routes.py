@@ -102,13 +102,17 @@ def pending_community_experiences():
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
             cursor.execute("""
-                SELECT id, title, category, location 
+                SELECT id, title, category, location, price, certificate_path
                 FROM community_experience 
                 WHERE approved = 0
             """)
             pending_experiences = cursor.fetchall()
 
-    return render_template('admin_dashboard.html', pending_experiences=pending_experiences)
+    return render_template(
+        'admin_dashboard.html',
+        pending_experiences=pending_experiences
+    )
+
 
 
 # --- Approve community experience ---
