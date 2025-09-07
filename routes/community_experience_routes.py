@@ -126,23 +126,54 @@ def nearby_experiences():
 def book_experience(exp_id):
     data = request.get_json()
     user_id = data.get("user_id")
+    redeem_points = data.get("redeem_points", 0)  # Get redeem points, default to 0
+    
     if not user_id:
         return jsonify({"error": "user_id required"}), 400
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
+        # Get experience price to calculate discount
+        cursor.execute("SELECT price FROM community_experience WHERE id = %s", (exp_id,))
+        experience = cursor.fetchone()
+        experience_price = experience['price'] if experience else 0
+        
+        # Calculate discount (1 point = Rs.10)
+        discount_amount = redeem_points * 10
+        final_price = max(0, experience_price - discount_amount) if experience_price else 0
+
+        # Check if user has enough points to redeem
+        if redeem_points > 0:
+            cursor.execute("SELECT balance FROM eco_points WHERE user_id = %s", (user_id,))
+            points_balance = cursor.fetchone()
+            current_balance = points_balance['balance'] if points_balance else 0
+            
+            if current_balance < redeem_points:
+                return jsonify({"error": "Insufficient eco points"}), 400
+
         # Use UTC-aware booking date
         booking_date_utc = datetime.now(pytz.utc).strftime("%Y-%m-%d %H:%M:%S")
 
         cursor.execute("""
-            INSERT INTO community_booking (user_id, experience_id, booking_date, status)
-            VALUES (%s, %s, %s, 'booked')
-        """, (user_id, exp_id, booking_date_utc))
+            INSERT INTO community_booking (user_id, experience_id, booking_date, status, redeem_points, final_price)
+            VALUES (%s, %s, %s, 'booked', %s, %s)
+        """, (user_id, exp_id, booking_date_utc, redeem_points, final_price))
         conn.commit()
         booking_id = cursor.lastrowid
 
-        # Award 10 eco points
+        # Deduct redeemed points if any
+        if redeem_points > 0:
+            EcoPoints.adjust_balance(user_id, -redeem_points)
+            EcoPoints.create_transaction(
+                user_id,
+                redeem_points,
+                'redeem',
+                booking_id,
+                f"Redeemed {redeem_points} points for community experience #{exp_id}"
+            )
+
+        # Award 10 eco points (unless it's a free experience where user might be redeeming points)
         points_earned = 10
         EcoPoints.adjust_balance(user_id, points_earned)
         EcoPoints.create_transaction(
@@ -156,6 +187,9 @@ def book_experience(exp_id):
         return jsonify({
             "booking_id": booking_id,
             "points_earned": points_earned,
+            "points_redeemed": redeem_points,
+            "discount_amount": discount_amount,
+            "final_price": final_price,
             "booking_date": booking_date_utc,
             "message": "Booking successful"
         }), 201
