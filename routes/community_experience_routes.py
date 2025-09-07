@@ -191,19 +191,23 @@ def cancel_community_booking(booking_id):
         if not booking:
             return jsonify({"error": "Booking not found or already cancelled/finished"}), 404
 
-        # Ensure booking_date is UTC-aware datetime
+        # Parse booking time (already UTC)
         booking_time = booking['booking_date']
         if isinstance(booking_time, str):
             try:
-                booking_time = datetime.fromisoformat(booking_time)
+                booking_time = datetime.fromisoformat(booking_time.replace('Z', '+00:00'))
             except ValueError:
                 booking_time = datetime.strptime(booking_time, "%Y-%m-%d %H:%M:%S")
-        if isinstance(booking_time, datetime) and booking_time.tzinfo is None:
+        
+        # Ensure booking_time is UTC-aware
+        if booking_time.tzinfo is None:
             booking_time = booking_time.replace(tzinfo=pytz.utc)
+        else:
+            booking_time = booking_time.astimezone(pytz.utc)
 
         now = datetime.now(pytz.utc)
 
-        # 3-hour cancellation window
+        # 3-hour cancellation window (compare in UTC)
         if (now - booking_time).total_seconds() > 3 * 3600:
             return jsonify({"error": "Cancellation window expired (3 hours)."}), 403
 
@@ -232,7 +236,6 @@ def cancel_community_booking(booking_id):
     except Exception as e:
         conn.rollback()
         return jsonify({"error": "Failed to cancel community booking", "details": str(e)}), 500
-
     finally:
         cursor.close()
         conn.close()
