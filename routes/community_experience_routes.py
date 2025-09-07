@@ -143,11 +143,11 @@ def book_experience(exp_id):
         discount_amount = redeem_points * 10
         final_price = max(0, experience_price - discount_amount) if experience_price else 0
 
-        # Check if user has enough points to redeem
+        # Check if user has enough points to redeem (points are in user_account table)
         if redeem_points > 0:
-            cursor.execute("SELECT balance FROM eco_points WHERE user_id = %s", (user_id,))
-            points_balance = cursor.fetchone()
-            current_balance = points_balance['balance'] if points_balance else 0
+            cursor.execute("SELECT eco_points FROM user_account WHERE id = %s", (user_id,))
+            user_account = cursor.fetchone()
+            current_balance = user_account['eco_points'] if user_account else 0
             
             if current_balance < redeem_points:
                 return jsonify({"error": "Insufficient eco points"}), 400
@@ -159,30 +159,37 @@ def book_experience(exp_id):
             INSERT INTO community_booking (user_id, experience_id, booking_date, status, redeem_points, final_price)
             VALUES (%s, %s, %s, 'booked', %s, %s)
         """, (user_id, exp_id, booking_date_utc, redeem_points, final_price))
-        conn.commit()
         booking_id = cursor.lastrowid
 
-        # Deduct redeemed points if any
+        # Deduct redeemed points if any (update user_account table)
         if redeem_points > 0:
-            EcoPoints.adjust_balance(user_id, -redeem_points)
-            EcoPoints.create_transaction(
-                user_id,
-                redeem_points,
-                'redeem',
-                booking_id,
-                f"Redeemed {redeem_points} points for community experience #{exp_id}"
-            )
+            cursor.execute("""
+                UPDATE user_account 
+                SET eco_points = eco_points - %s 
+                WHERE id = %s
+            """, (redeem_points, user_id))
+            
+            # Log the redemption transaction
+            cursor.execute("""
+                INSERT INTO eco_points_transactions (user_id, points, type, booking_id, description)
+                VALUES (%s, %s, 'redeem', %s, %s)
+            """, (user_id, redeem_points, booking_id, f"Redeemed {redeem_points} points for community experience #{exp_id}"))
 
-        # Award 10 eco points (unless it's a free experience where user might be redeeming points)
+        # Award 10 eco points (update user_account table)
         points_earned = 10
-        EcoPoints.adjust_balance(user_id, points_earned)
-        EcoPoints.create_transaction(
-            user_id,
-            points_earned,
-            'earn',
-            booking_id,
-            f"Earned {points_earned} points for booking community experience #{exp_id}"
-        )
+        cursor.execute("""
+            UPDATE user_account 
+            SET eco_points = eco_points + %s 
+            WHERE id = %s
+        """, (points_earned, user_id))
+        
+        # Log the earning transaction
+        cursor.execute("""
+            INSERT INTO eco_points_transactions (user_id, points, type, booking_id, description)
+            VALUES (%s, %s, 'earn', %s, %s)
+        """, (user_id, points_earned, booking_id, f"Earned {points_earned} points for booking community experience #{exp_id}"))
+
+        conn.commit()
 
         return jsonify({
             "booking_id": booking_id,
@@ -200,7 +207,6 @@ def book_experience(exp_id):
     finally:
         cursor.close()
         conn.close()
-
 
 # --- Approve / Unapprove experience ---
 @community_bp.route("/admin/community-experiences/<int:exp_id>/approve", methods=["PUT"])
