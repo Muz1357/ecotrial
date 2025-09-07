@@ -1,97 +1,74 @@
-from flask import Blueprint, request, jsonify
+from flask import jsonify
+from . import business_bp
 from models.db import get_connection
-from datetime import datetime
-from dateutil import parser
+from flask import Blueprint
 
-report_bp = Blueprint('report', __name__)
+business_bp = Blueprint('business', __name__)
 
-@report_bp.route('/report/business/<int:business_id>', methods=['GET'])
-def business_report(business_id):
-    """
-    Generate a summary report for a business owner:
-    - total listings
-    - total bookings
-    - cancelled bookings
-    - revenue (if price is in listing)
-    - occupancy % (rooms booked / total rooms available)
-    Optional query params: start_date, end_date (ISO format)
-    """
-    start_date = request.args.get("start_date")
-    end_date = request.args.get("end_date")
-
-    try:
-        if start_date:
-            start_date = parser.isoparse(start_date).date()
-        if end_date:
-            end_date = parser.isoparse(end_date).date()
-    except Exception:
-        return jsonify({"error": "Invalid date format. Use ISO (YYYY-MM-DD)."}), 400
-
+@business_bp.route('/report/<int:business_owner_id>', methods=['GET'])
+def business_report(business_owner_id):
     conn = get_connection()
+    if not conn:
+        return jsonify({"error": "Database connection failed"}), 500
     cursor = conn.cursor(dictionary=True)
 
-    # base filter
-    date_filter = ""
-    params = [business_id]
-    if start_date and end_date:
-        date_filter = "AND b.check_in >= %s AND b.check_out <= %s"
-        params.extend([start_date, end_date])
+    # 1. Business owner info
+    cursor.execute("""
+        SELECT id, name, business_name, profile_image, eco_points 
+        FROM user_account WHERE id = %s
+    """, (business_owner_id,))
+    owner = cursor.fetchone()
 
-    try:
-        # 1) total listings
-        cursor.execute("SELECT COUNT(*) as total_listings FROM listing WHERE user_id = %s", (business_id,))
-        total_listings = cursor.fetchone()["total_listings"]
+    # 2. Listings
+    cursor.execute("""
+        SELECT id, title, price, rooms_available, is_approved 
+        FROM listing WHERE user_id = %s
+    """, (business_owner_id,))
+    listings = cursor.fetchall()
 
-        # 2) total bookings & cancellations
-        cursor.execute(f"""
-            SELECT COUNT(*) as total_bookings,
-                   SUM(CASE WHEN b.is_cancelled = TRUE THEN 1 ELSE 0 END) as cancelled
-            FROM booking b
-            JOIN listing l ON b.listing_id = l.id
-            WHERE l.user_id = %s {date_filter}
-        """, tuple(params))
-        row = cursor.fetchone()
-        total_bookings = row["total_bookings"] or 0
-        cancelled = row["cancelled"] or 0
+    # 3. Booking summary
+    cursor.execute("""
+        SELECT 
+            COUNT(*) AS total_bookings,
+            SUM(is_cancelled=1) AS cancelled,
+            SUM(is_completed=1) AS completed,
+            SUM(is_released=1) AS released,
+            COALESCE(SUM(CAST(price AS DECIMAL(10,2))),0) AS revenue
+        FROM booking b
+        JOIN listing l ON b.listing_id = l.id
+        WHERE l.user_id = %s
+    """, (business_owner_id,))
+    booking_summary = cursor.fetchone()
 
-        # 3) revenue (if price in listing)
-        cursor.execute(f"""
-            SELECT SUM(l.price) as revenue
-            FROM booking b
-            JOIN listing l ON b.listing_id = l.id
-            WHERE l.user_id = %s AND b.is_cancelled = FALSE {date_filter}
-        """, tuple(params))
-        revenue = cursor.fetchone()["revenue"] or 0
+    # 4. Room utilization
+    cursor.execute("""
+        SELECT 
+            SUM(ra.rooms_booked) AS total_rooms_booked,
+            SUM(l.rooms_available) AS total_rooms_available
+        FROM room_availability ra
+        JOIN listing l ON ra.listing_id = l.id
+        WHERE l.user_id = %s
+    """, (business_owner_id,))
+    room_data = cursor.fetchone()
 
-        # 4) occupancy = rooms booked / rooms available
-        cursor.execute(f"""
-            SELECT SUM(DATEDIFF(b.check_out, b.check_in)) as room_nights_booked,
-                   SUM(l.rooms_available * DATEDIFF(b.check_out, b.check_in)) as room_nights_capacity
-            FROM booking b
-            JOIN listing l ON b.listing_id = l.id
-            WHERE l.user_id = %s AND b.is_cancelled = FALSE {date_filter}
-        """, tuple(params))
-        occ_row = cursor.fetchone()
-        booked = occ_row["room_nights_booked"] or 0
-        capacity = occ_row["room_nights_capacity"] or 0
-        occupancy_rate = round((booked / capacity) * 100, 2) if capacity > 0 else 0.0
+    # 5. Eco Points summary
+    cursor.execute("""
+        SELECT 
+            SUM(CASE WHEN type='earn' THEN points ELSE 0 END) AS earned,
+            SUM(CASE WHEN type='redeem' THEN points ELSE 0 END) AS redeemed,
+            SUM(CASE WHEN type='revert' THEN points ELSE 0 END) AS reverted
+        FROM eco_points_transactions
+        WHERE user_id = %s
+    """, (business_owner_id,))
+    eco_points = cursor.fetchone()
 
-        cursor.close()
-        conn.close()
+    cursor.close()
+    conn.close()
 
-        return jsonify({
-            "business_id": business_id,
-            "total_listings": total_listings,
-            "total_bookings": total_bookings,
-            "cancelled_bookings": cancelled,
-            "revenue": revenue,
-            "occupancy_rate": occupancy_rate,
-            "date_range": {
-                "start_date": str(start_date) if start_date else None,
-                "end_date": str(end_date) if end_date else None
-            }
-        })
-    except Exception as e:
-        cursor.close()
-        conn.close()
-        return jsonify({"error": "Failed to generate report", "details": str(e)}), 500
+    return jsonify({
+        "owner": owner,
+        "listings": listings,
+        "booking_summary": booking_summary,
+        "room_data": room_data,
+        "eco_points": eco_points
+    })
