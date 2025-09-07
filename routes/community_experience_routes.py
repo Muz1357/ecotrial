@@ -156,6 +156,7 @@ def book_experience(exp_id):
         return jsonify({
             "booking_id": booking_id,
             "points_earned": points_earned,
+            "booking_date": booking_date_utc,
             "message": "Booking successful"
         }), 201
 
@@ -174,13 +175,11 @@ def approve_experience(exp_id):
     CommunityExperience.approve(exp_id, approved)
     return jsonify({"message": f"Experience {'approved' if approved else 'unapproved'}"})
 
-# --- List bookings ---
-# --- Cancel booking (revert 10 points) ---
 @community_bp.route("/community-bookings/<int:booking_id>/cancel", methods=["POST"])
 def cancel_community_booking(booking_id):
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
-    
+
     try:
         # Fetch booking info
         cursor.execute(
@@ -188,18 +187,20 @@ def cancel_community_booking(booking_id):
             (booking_id,)
         )
         booking = cursor.fetchone()
-        
+
         if not booking:
             return jsonify({"error": "Booking not found or already cancelled/finished"}), 404
 
-        # Ensure booking_date is aware UTC
+        # Ensure booking_date is UTC-aware datetime
         booking_time = booking['booking_date']
         if isinstance(booking_time, str):
             booking_time = datetime.fromisoformat(booking_time)
-        if booking_time.tzinfo is None:
+        if isinstance(booking_time, datetime) and booking_time.tzinfo is None:
             booking_time = booking_time.replace(tzinfo=pytz.utc)
-        
+
         now = datetime.now(pytz.utc)
+
+        # 3-hour cancellation window
         if (now - booking_time).total_seconds() > 3 * 3600:
             return jsonify({"error": "Cancellation window expired (3 hours)."}), 403
 
@@ -209,7 +210,7 @@ def cancel_community_booking(booking_id):
             (booking_id,)
         )
 
-        # Revert earned points (10 per booking)
+        # Revert eco points
         tourist_id = booking.get('user_id')
         if tourist_id:
             points_earned = 10
@@ -232,7 +233,6 @@ def cancel_community_booking(booking_id):
     finally:
         cursor.close()
         conn.close()
-
 
 
 # --- List bookings (update expired bookings to finished) ---
