@@ -201,7 +201,7 @@ def cancel_community_booking(booking_id):
         now = datetime.now(pytz.utc)
 
         # 3-hour cancellation window
-        if (now - booking_time).total_seconds() > 3 * 3600:
+        if (now - booking_time).total_seconds() > 10 * 3600:
             return jsonify({"error": "Cancellation window expired (3 hours)."}), 403
 
         # Mark booking as cancelled
