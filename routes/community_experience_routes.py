@@ -194,14 +194,17 @@ def cancel_community_booking(booking_id):
         # Ensure booking_date is UTC-aware datetime
         booking_time = booking['booking_date']
         if isinstance(booking_time, str):
-            booking_time = datetime.fromisoformat(booking_time)
+            try:
+                booking_time = datetime.fromisoformat(booking_time)
+            except ValueError:
+                booking_time = datetime.strptime(booking_time, "%Y-%m-%d %H:%M:%S")
         if isinstance(booking_time, datetime) and booking_time.tzinfo is None:
             booking_time = booking_time.replace(tzinfo=pytz.utc)
 
         now = datetime.now(pytz.utc)
 
         # 3-hour cancellation window
-        if (now - booking_time).total_seconds() > 10 * 3600:
+        if (now - booking_time).total_seconds() > 3 * 3600:
             return jsonify({"error": "Cancellation window expired (3 hours)."}), 403
 
         # Mark booking as cancelled
