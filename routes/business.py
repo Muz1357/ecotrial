@@ -5,43 +5,27 @@ business_bp = Blueprint('business', __name__)
 
 @business_bp.route('/report/<int:business_owner_id>', methods=['GET'])
 def business_report(business_owner_id):
-    """
-    Generate a detailed business report including:
-    - Owner info
-    - Listings
-    - Booking summary
-    - Room utilization
-    - Eco points
-    """
     conn = get_connection()
     if not conn:
         return jsonify({"error": "Database connection failed"}), 500
 
     cursor = conn.cursor(dictionary=True)
 
-    # ----------------------
-    # 1️⃣ Owner Info
-    # ----------------------
+    # Owner info
     cursor.execute("""
-        SELECT id, name, business_name, profile_image, eco_points 
-        FROM user_account 
-        WHERE id = %s
+        SELECT id, name, business_name, profile_image
+        FROM user_account WHERE id = %s
     """, (business_owner_id,))
     owner = cursor.fetchone()
 
-    # ----------------------
-    # 2️⃣ Listings
-    # ----------------------
+    # Listings
     cursor.execute("""
         SELECT id, title, price, rooms_available, is_approved, location
-        FROM listing 
-        WHERE user_id = %s
+        FROM listing WHERE user_id = %s
     """, (business_owner_id,))
     listings = cursor.fetchall()
 
-    # ----------------------
-    # 3️⃣ Booking summary
-    # ----------------------
+    # Booking summary
     cursor.execute("""
         SELECT 
             COUNT(*) AS total_bookings,
@@ -55,9 +39,7 @@ def business_report(business_owner_id):
     """, (business_owner_id,))
     booking_summary = cursor.fetchone()
 
-    # ----------------------
-    # 4️⃣ Room utilization
-    # ----------------------
+    # Room utilization
     cursor.execute("""
         SELECT 
             COALESCE(SUM(ra.rooms_booked),0) AS total_rooms_booked,
@@ -68,29 +50,25 @@ def business_report(business_owner_id):
     """, (business_owner_id,))
     room_data = cursor.fetchone()
 
-    # ----------------------
-    # 5️⃣ Eco Points
-    # ----------------------
+    # Community experience summary
     cursor.execute("""
         SELECT 
-            COALESCE(SUM(CASE WHEN type='earn' THEN points ELSE 0 END),0) AS earned,
-            COALESCE(SUM(CASE WHEN type='redeem' THEN points ELSE 0 END),0) AS redeemed,
-            COALESCE(SUM(CASE WHEN type='revert' THEN points ELSE 0 END),0) AS reverted
-        FROM eco_points_transactions
-        WHERE user_id = %s
+            COUNT(*) AS total_community_bookings,
+            SUM(status='cancelled') AS cancelled_community,
+            SUM(status='finished') AS finished_community
+        FROM community_booking cb
+        JOIN community_experience ce ON cb.experience_id = ce.id
+        WHERE ce.user_id = %s
     """, (business_owner_id,))
-    eco_points = cursor.fetchone()
+    community_summary = cursor.fetchone()
 
     cursor.close()
     conn.close()
 
-    # ----------------------
-    # Return full report
-    # ----------------------
     return jsonify({
         "owner": owner,
         "listings": listings,
         "booking_summary": booking_summary,
         "room_data": room_data,
-        "eco_points": eco_points
+        "community_summary": community_summary
     })
