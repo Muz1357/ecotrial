@@ -20,7 +20,7 @@ def business_report(business_owner_id):
 
     # Listings
     cursor.execute("""
-        SELECT id, title, price, rooms_available, is_approved, location
+    SELECT id, title, price, rooms_available, is_approved, location, image_path
         FROM listing WHERE user_id = %s
     """, (business_owner_id,))
     listings = cursor.fetchall()
