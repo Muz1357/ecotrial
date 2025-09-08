@@ -41,6 +41,7 @@ def create_experience():
     try:
         title = request.form.get("title")
         location_name = request.form.get("location")
+        user_id = request.form.get("user_id")
 
         if not title or not location_name:
             return jsonify({"error": "title and location required"}), 400
@@ -76,6 +77,7 @@ def create_experience():
             "certificate_path": certificate_path,
             "weather_type": request.form.get("weather_type") or "Both",
             "contact_info": request.form.get("contact_info"),
+            "user_id": user_id
         })
 
         return jsonify({"id": exp_id, "message": "Experience created"}), 201

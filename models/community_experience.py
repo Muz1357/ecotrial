@@ -29,7 +29,7 @@ def geocode_location(address):
 class CommunityExperience:
     def __init__(self, id, title, description, location, latitude,
                  longitude, price, image_path, certificate_path,
-                 weather_type, contact_info, approved, created_at, updated_at):
+                 weather_type, contact_info, approved, created_at, updated_at, user_id):
         self.id = id
         self.title = title
         self.description = description
@@ -41,9 +41,11 @@ class CommunityExperience:
         self.certificate_path = certificate_path
         self.weather_type = weather_type
         self.contact_info = contact_info
+        self.user_id = user_id
         self.approved = approved
         self.created_at = created_at
         self.updated_at = updated_at
+        
 
     def to_dict(self):
         return {
@@ -58,6 +60,7 @@ class CommunityExperience:
             "certificate_path": self.certificate_path,
             "weather_type": self.weather_type,
             "contact_info": self.contact_info,
+            "user_id": self.user_id,
             "approved": bool(self.approved),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None
@@ -70,8 +73,8 @@ class CommunityExperience:
         cursor.execute("""
             INSERT INTO community_experience 
             (title, description, location, latitude, longitude, price,
-             image_path, certificate_path, weather_type, contact_info, approved, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+             image_path, certificate_path, weather_type, contact_info, user_id, approved, created_at, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
         """, (
             data.get("title"),
             data.get("description"),
@@ -83,6 +86,7 @@ class CommunityExperience:
             data.get("certificate_path"),
             data.get("weather_type") or "Both",
             data.get("contact_info"),
+            data.get("user_id"),
             False
         ))
         conn.commit()
