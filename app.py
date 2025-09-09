@@ -14,6 +14,7 @@ from routes.plan_trip import plan_trip_bp
 from routes.eco_routes import eco_bp
 from routes.community_experience_routes import community_bp
 from routes.business import business_bp
+from routes.business_manage import business_manage_bp
 
 
 
@@ -41,6 +42,7 @@ app.register_blueprint(plan_trip_bp)
 app.register_blueprint(eco_bp)
 app.register_blueprint(community_bp)
 app.register_blueprint(business_bp)
+app.register_blueprint(business_manage_bp)
 
 
    
