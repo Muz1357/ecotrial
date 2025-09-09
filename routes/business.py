@@ -76,119 +76,97 @@ def business_report(business_owner_id):
         "community_summary": community_summary
     })
 
-# ------- Listings GET (owner) -------
-@business_bp.route('/business-listings/<int:business_owner_id>', methods=['GET'])
-def get_listings(business_owner_id):
+# Get all listings of a business owner
+@business_bp.route('/business/listings/<int:user_id>', methods=['GET'])
+def get_listings(user_id):
     conn = get_connection()
-    if not conn:
-        return jsonify({"error": "DB connection failed"}), 500
-    cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        SELECT id, title, price, rooms_available, is_approved, location, image_path
-        FROM listing WHERE user_id = %s
-    """, (business_owner_id,))
-    listings = cur.fetchall()
-    cur.close()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM listing WHERE user_id = %s", (user_id,))
+    listings = cursor.fetchall()
+    cursor.close()
     conn.close()
-    return jsonify({"listings": listings}), 200
+    return jsonify(listings)
 
-# ------- Experiences GET (owner) -------
-@business_bp.route('/experiences/<int:business_owner_id>', methods=['GET'])
-def get_experiences(business_owner_id):
+# Edit a listing
+@business_bp.route('/listing/<int:listing_id>', methods=['PUT'])
+def edit_listing(listing_id):
+    data = request.json
     conn = get_connection()
-    if not conn:
-        return jsonify({"error": "DB connection failed"}), 500
-    cur = conn.cursor(dictionary=True)
-    cur.execute("""
-        SELECT id, title, description, image_path, is_approved
-        FROM community_experience
-        WHERE user_id = %s
-    """, (business_owner_id,))
-    experiences = cur.fetchall()
-    cur.close()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE listing SET title=%s, description=%s, price=%s, rooms_available=%s, room_details=%s, location=%s
+        WHERE id=%s
+    """, (
+        data.get('title'),
+        data.get('description'),
+        data.get('price'),
+        data.get('rooms_available'),
+        data.get('room_details'),
+        data.get('location'),
+        listing_id
+    ))
+    conn.commit()
+    cursor.close()
     conn.close()
-    return jsonify({"experiences": experiences}), 200
+    return jsonify({"message": "Listing updated successfully"})
 
-# ------- Delete Listing -------
+# Delete a listing
 @business_bp.route('/listing/<int:listing_id>', methods=['DELETE'])
 def delete_listing(listing_id):
     conn = get_connection()
-    if not conn:
-        return jsonify({"error": "DB connection failed"}), 500
-    cur = conn.cursor()
-    cur.execute("DELETE FROM listing WHERE id = %s", (listing_id,))
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM listing WHERE id=%s", (listing_id,))
     conn.commit()
-    affected = cur.rowcount
-    cur.close()
+    cursor.close()
     conn.close()
-    if affected:
-        return jsonify({"success": True}), 200
-    return jsonify({"error": "Not found"}), 404
+    return jsonify({"message": "Listing deleted successfully"})
 
-# ------- Delete Experience -------
-@business_bp.route('/experience/<int:exp_id>', methods=['DELETE'])
-def delete_experience(exp_id):
+# Get all experiences of a business owner
+@business_bp.route('/business/experiences/<int:user_id>', methods=['GET'])
+def get_experiences(user_id):
     conn = get_connection()
-    if not conn:
-        return jsonify({"error": "DB connection failed"}), 500
-    cur = conn.cursor()
-    cur.execute("DELETE FROM community_experience WHERE id = %s", (exp_id,))
-    conn.commit()
-    affected = cur.rowcount
-    cur.close()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT ce.* FROM community_experience ce
+        JOIN user_account ua ON ua.id=%s
+        WHERE ce.id IN (
+            SELECT experience_id FROM community_booking WHERE user_id=%s
+        )
+    """, (user_id, user_id))
+    experiences = cursor.fetchall()
+    cursor.close()
     conn.close()
-    if affected:
-        return jsonify({"success": True}), 200
-    return jsonify({"error": "Not found"}), 404
+    return jsonify(experiences)
 
-# ------- Update Listing (JSON fields) -------
-@business_bp.route('/listing/<int:listing_id>', methods=['PUT'])
-def update_listing(listing_id):
-    payload = request.get_json() or {}
-    allowed = ['title', 'price', 'rooms_available', 'location', 'is_approved']
-    fields = []
-    vals = []
-    for k in allowed:
-        if k in payload:
-            fields.append(f"{k} = %s")
-            vals.append(payload[k])
-    if not fields:
-        return jsonify({"error": "No valid fields provided"}), 400
-
+# Edit experience
+@business_bp.route('/experience/<int:experience_id>', methods=['PUT'])
+def edit_experience(experience_id):
+    data = request.json
     conn = get_connection()
-    if not conn:
-        return jsonify({"error": "DB connection failed"}), 500
-    cur = conn.cursor()
-    sql = f"UPDATE listing SET {', '.join(fields)} WHERE id = %s"
-    vals.append(listing_id)
-    cur.execute(sql, tuple(vals))
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE community_experience
+        SET title=%s, description=%s, price=%s, location=%s
+        WHERE id=%s
+    """, (
+        data.get('title'),
+        data.get('description'),
+        data.get('price'),
+        data.get('location'),
+        experience_id
+    ))
     conn.commit()
-    cur.close()
+    cursor.close()
     conn.close()
-    return jsonify({"success": True}), 200
+    return jsonify({"message": "Experience updated successfully"})
 
-# ------- Update Experience (JSON fields) -------
-@business_bp.route('/experience/<int:exp_id>', methods=['PUT'])
-def update_experience(exp_id):
-    payload = request.get_json() or {}
-    allowed = ['title', 'description', 'is_approved']
-    fields = []
-    vals = []
-    for k in allowed:
-        if k in payload:
-            fields.append(f"{k} = %s")
-            vals.append(payload[k])
-    if not fields:
-        return jsonify({"error": "No valid fields provided"}), 400
-
+# Delete experience
+@business_bp.route('/experience/<int:experience_id>', methods=['DELETE'])
+def delete_experience(experience_id):
     conn = get_connection()
-    if not conn:
-        return jsonify({"error": "DB connection failed"}), 500
-    cur = conn.cursor()
-    sql = f"UPDATE community_experience SET {', '.join(fields)} WHERE id = %s"
-    vals.append(exp_id)
-    cur.execute(sql, tuple(vals))
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM community_experience WHERE id=%s", (experience_id,))
     conn.commit()
-    cur.close()
+    cursor.close()
     conn.close()
-    return jsonify({"success": True}), 200
+    return jsonify({"message": "Experience deleted successfully"})
