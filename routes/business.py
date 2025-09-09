@@ -77,7 +77,7 @@ def business_report(business_owner_id):
     })
 
 # ------- Listings GET (owner) -------
-@business_bp.route('/listings/<int:business_owner_id>', methods=['GET'])
+@business_bp.route('/business-listings/<int:business_owner_id>', methods=['GET'])
 def get_listings(business_owner_id):
     conn = get_connection()
     if not conn:
