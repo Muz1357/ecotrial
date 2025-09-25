@@ -232,7 +232,7 @@ def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        # Fetch past booked locations and titles
+        # Get past booked locations and titles
         cursor.execute("""
             SELECT DISTINCT l.location, l.title
             FROM listing l
@@ -241,16 +241,15 @@ def get_recommended_listings(user_id):
         """, (user_id,))
         past = cursor.fetchall()
 
-        # Extract keywords from locations and titles
+        # Extract keywords
         keywords = []
         for row in past:
             if row['location']:
-                keywords.extend(row['location'].split())  # split into words
+                keywords.extend(row['location'].split())
             if row['title']:
                 keywords.extend(row['title'].split())
 
-        # Remove duplicates & clean
-        keywords = list(set([k.strip() for k in keywords if k.strip()]))
+        keywords = list(set([k.strip() for k in keywords if k and k.strip()]))
 
         # Base query
         query = """
@@ -260,19 +259,20 @@ def get_recommended_listings(user_id):
         """
         params = []
 
-        # Add relevance based on keyword matches
+        # Add keyword-based relevance only if we have keywords
         if keywords:
             relevance_cases = []
             for kw in keywords:
-                relevance_cases.append(f"WHEN l.location LIKE %s THEN 2")
+                relevance_cases.append("WHEN l.location LIKE %s THEN 2")
                 params.append(f"%{kw}%")
-                relevance_cases.append(f"WHEN l.title LIKE %s THEN 1")
+                relevance_cases.append("WHEN l.title LIKE %s THEN 1")
                 params.append(f"%{kw}%")
 
-            case_sql = "CASE " + " ".join(relevance_cases) + " ELSE 0 END"
+            # Replace "0 AS relevance" safely
+            case_sql = "(CASE " + " ".join(relevance_cases) + " ELSE 0 END)"
             query = query.replace("0 AS relevance", f"{case_sql} AS relevance")
 
-        # Order by relevance, most relevant first
+        # Order by relevance & recency
         query += " ORDER BY relevance DESC, l.created_at DESC LIMIT 20"
 
         cursor.execute(query, tuple(params))
@@ -282,6 +282,7 @@ def get_recommended_listings(user_id):
     finally:
         cursor.close()
         connection.close()
+
 
 def get_popular_listings(limit=20):
     connection = get_connection()
