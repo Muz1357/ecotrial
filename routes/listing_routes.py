@@ -232,7 +232,7 @@ def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        # Fetch past booked locations and titles
+        # 1. Fetch past booked locations and titles
         cursor.execute("""
             SELECT DISTINCT l.location, l.title
             FROM listing l
@@ -240,19 +240,32 @@ def get_recommended_listings(user_id):
             WHERE b.tourist_id = %s
         """, (user_id,))
         past = cursor.fetchall()
-        past_locations = [row['location'] for row in past]
-        past_titles = [row['title'] for row in past]
+        past_locations = [row['location'] for row in past if row['location']]
+        past_titles = [row['title'] for row in past if row['title']]
 
         if not past_locations and not past_titles:
-            return []  # no history → no recommendations
+            return []  # no booking history → nothing to recommend
 
-        # Build query without radius/distance
+        # 2. Build conditions dynamically
+        relevance_case = []
+        params = []
+
+        if past_locations:
+            loc_cond = " OR ".join(["location LIKE %s"] * len(past_locations))
+            relevance_case.append(f"WHEN ({loc_cond}) THEN 2")
+            params.extend([f"%{loc}%" for loc in past_locations])
+
+        if past_titles:
+            title_cond = " OR ".join(["title LIKE %s"] * len(past_titles))
+            relevance_case.append(f"WHEN ({title_cond}) THEN 1")
+            params.extend([f"%{t}%" for t in past_titles])
+
+        # 3. Final query
         query = f"""
             SELECT id, title, description, price, rooms_available, room_details,
                    latitude, longitude, eco_cert_url, location,
                    CASE
-                       WHEN {" OR ".join(["location LIKE %s"] * len(past_locations)) if past_locations else "FALSE"} THEN 2
-                       WHEN {" OR ".join(["title LIKE %s"] * len(past_titles)) if past_titles else "FALSE"} THEN 1
+                       {' '.join(relevance_case)}
                        ELSE 0
                    END AS relevance
             FROM listing
@@ -262,20 +275,16 @@ def get_recommended_listings(user_id):
             LIMIT 20
         """
 
-        # Build params (fuzzy matching with LIKE)
-        params = []
-        params += [f"%{loc}%" for loc in past_locations]
-        params += [f"%{t}%" for t in past_titles]
-
         cursor.execute(query, tuple(params))
         listings = cursor.fetchall()
 
-        # Cast to proper types
+        # Cast types
         for l in listings:
             if l.get('latitude') is not None:
                 l['latitude'] = float(l['latitude'])
             if l.get('longitude') is not None:
                 l['longitude'] = float(l['longitude'])
+
         return listings
 
     finally:
