@@ -232,70 +232,53 @@ def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        # 1. Fetch past bookings
+        # Get user's top 3 most frequently booked locations
         cursor.execute("""
-            SELECT DISTINCT l.location, l.title
-            FROM listing l
-            JOIN booking b ON l.id = b.listing_id
+            SELECT l.location, COUNT(b.id) as location_count
+            FROM booking b
+            JOIN listing l ON b.listing_id = l.id
             WHERE b.tourist_id = %s
+            GROUP BY l.location
+            ORDER BY location_count DESC
+            LIMIT 3
         """, (user_id,))
-        past = cursor.fetchall()
-        past_locations = [row['location'] for row in past if row['location']]
-        past_titles = [row['title'] for row in past if row['title']]
-
-        # 2. If no history → return empty list (or popular fallback)
-        if not past_locations and not past_titles:
-            return []
-
-        # 3. Build dynamic CASE
-        relevance_case = []
-        params = []
-
-        if past_locations:
-            loc_cond = " OR ".join(["location LIKE %s"] * len(past_locations))
-            relevance_case.append(f"WHEN ({loc_cond}) THEN 2")
-            params.extend([f"%{loc}%" for loc in past_locations])
-
-        if past_titles:
-            title_cond = " OR ".join(["title LIKE %s"] * len(past_titles))
-            relevance_case.append(f"WHEN ({title_cond}) THEN 1")
-            params.extend([f"%{t}%" for t in past_titles])
-
-        case_sql = " ".join(relevance_case) if relevance_case else "ELSE 0"
-
-        # 4. Final query
-        query = f"""
-            SELECT id, title, description, price, rooms_available, room_details,
-                   latitude, longitude, eco_cert_url, location,
-                   CASE
-                       {case_sql}
-                       ELSE 0
-                   END AS relevance
-            FROM listing
-            WHERE is_approved = 1
-            HAVING relevance > 0
-            ORDER BY relevance DESC
-            LIMIT 20
-        """
-
-        cursor.execute(query, tuple(params))
+        
+        favorite_locations = cursor.fetchall()
+        
+        if favorite_locations:
+            # Extract location names
+            locations = [loc['location'] for loc in favorite_locations]
+            
+            # Create placeholders for the IN clause
+            placeholders = ', '.join(['%s'] * len(locations))
+            
+            # Get listings from the user's favorite locations
+            cursor.execute(f"""
+                SELECT l.* 
+                FROM listing l
+                WHERE l.location IN ({placeholders}) AND l.is_approved = 1
+                ORDER BY 
+                    CASE l.location 
+                        WHEN %s THEN 1 
+                        WHEN %s THEN 2 
+                        WHEN %s THEN 3 
+                        ELSE 4 
+                    END,
+                    RAND()
+                LIMIT 10
+            """, locations + locations[:3])  # Add the locations again for CASE ordering
+        else:
+            # If no booking history, return empty or fallback
+            cursor.execute("""
+                SELECT l.* 
+                FROM listing l
+                WHERE l.is_approved = 1
+                ORDER BY RAND()
+                LIMIT 10
+            """)
+        
         listings = cursor.fetchall()
-
-        # 5. Normalize lat/lng
-        for l in listings:
-            if l.get('latitude') is not None:
-                try:
-                    l['latitude'] = float(l['latitude'])
-                except:
-                    l['latitude'] = None
-            if l.get('longitude') is not None:
-                try:
-                    l['longitude'] = float(l['longitude'])
-                except:
-                    l['longitude'] = None
-
         return listings
-
     finally:
         cursor.close()
         connection.close()
@@ -323,11 +306,9 @@ def get_popular_listings(limit=20):
 @listing_bp.route('/home-listings', methods=['GET'])
 def home_listings():
     user_id = request.args.get('user_id', type=int)
-    lat = request.args.get('lat', type=float)
-    lng = request.args.get('lng', type=float)
 
     try:
-        recommended = get_recommended_listings(user_id, lat, lng) if user_id else []
+        recommended = get_recommended_listings(user_id) if user_id else []
         popular = get_popular_listings()
         return jsonify({
             "status": "success",
