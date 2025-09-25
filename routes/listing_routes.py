@@ -232,7 +232,7 @@ def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        # Get user's top 3 most frequently booked locations
+        # Get user's most frequently booked location from their booking history
         cursor.execute("""
             SELECT l.location, COUNT(b.id) as location_count
             FROM booking b
@@ -240,35 +240,22 @@ def get_recommended_listings(user_id):
             WHERE b.tourist_id = %s
             GROUP BY l.location
             ORDER BY location_count DESC
-            LIMIT 3
+            LIMIT 1
         """, (user_id,))
         
-        favorite_locations = cursor.fetchall()
+        favorite_location = cursor.fetchone()
         
-        if favorite_locations:
-            # Extract location names
-            locations = [loc['location'] for loc in favorite_locations]
-            
-            # Create placeholders for the IN clause
-            placeholders = ', '.join(['%s'] * len(locations))
-            
-            # Get listings from the user's favorite locations
-            cursor.execute(f"""
+        if favorite_location:
+            # Get listings from the user's favorite location
+            cursor.execute("""
                 SELECT l.* 
                 FROM listing l
-                WHERE l.location IN ({placeholders}) AND l.is_approved = 1
-                ORDER BY 
-                    CASE l.location 
-                        WHEN %s THEN 1 
-                        WHEN %s THEN 2 
-                        WHEN %s THEN 3 
-                        ELSE 4 
-                    END,
-                    RAND()
+                WHERE l.location = %s AND l.is_approved = 1
+                ORDER BY RAND()
                 LIMIT 10
-            """, locations + locations[:3])  # Add the locations again for CASE ordering
+            """, (favorite_location['location'],))
         else:
-            # If no booking history, return empty or fallback
+            # If no booking history, return empty or fallback to popular listings
             cursor.execute("""
                 SELECT l.* 
                 FROM listing l
