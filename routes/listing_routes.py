@@ -227,3 +227,93 @@ def get_hotels_near_route():
     cursor.close()
     conn.close()
     return jsonify(nearby_hotels)
+
+def get_recommended_listings(user_id, lat=None, lng=None, radius_km=5):
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        # Fetch past booked locations
+        cursor.execute("""
+            SELECT DISTINCT l.location, l.title
+            FROM listing l
+            JOIN booking b ON l.id = b.listing_id
+            WHERE b.tourist_id = %s
+        """, (user_id,))
+        past = cursor.fetchall()
+        past_locations = [row['location'] for row in past]
+        past_titles = [row['title'] for row in past]
+
+        # Build query
+        query = """
+            SELECT id, title, description, price, rooms_available, room_details,
+                   latitude, longitude, eco_cert_url,
+                   (6371 * acos(
+                       cos(radians(%s)) * cos(radians(latitude)) *
+                       cos(radians(longitude) - radians(%s)) +
+                       sin(radians(%s)) * sin(radians(latitude))
+                   )) AS distance,
+                   CASE
+                       WHEN location IN ({locations}) THEN 2
+                       WHEN title IN ({titles}) THEN 1
+                       ELSE 0
+                   END AS relevance
+            FROM listing
+            WHERE is_approved = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+        """
+        loc_placeholders = ','.join(['%s'] * len(past_locations)) if past_locations else 'NULL'
+        title_placeholders = ','.join(['%s'] * len(past_titles)) if past_titles else 'NULL'
+        query = query.format(locations=loc_placeholders, titles=title_placeholders)
+        query += " HAVING distance <= %s ORDER BY relevance DESC, distance ASC LIMIT 20"
+
+        params = [lat, lng, lat] + past_locations + past_titles + [radius_km] if user_id else [lat, lng, lat, radius_km]
+
+        cursor.execute(query, tuple(params))
+        listings = cursor.fetchall()
+
+        # Convert decimals
+        for l in listings:
+            l['distance'] = float(l['distance'])
+            l['latitude'] = float(l['latitude'])
+            l['longitude'] = float(l['longitude'])
+        return listings
+
+    finally:
+        cursor.close()
+        connection.close()
+
+def get_popular_listings(limit=20):
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+    try:
+        cursor.execute("""
+            SELECT l.*, COUNT(b.id) AS booking_count
+            FROM listing l
+            LEFT JOIN booking b ON l.id = b.listing_id
+            WHERE l.is_approved = 1
+            GROUP BY l.id
+            ORDER BY booking_count DESC
+            LIMIT %s
+        """, (limit,))
+        listings = cursor.fetchall()
+        return listings
+    finally:
+        cursor.close()
+        connection.close()
+
+@listing_bp.route('/home-listings', methods=['GET'])
+def home_listings():
+    user_id = request.args.get('user_id', type=int)
+    lat = request.args.get('lat', type=float)
+    lng = request.args.get('lng', type=float)
+
+    try:
+        recommended = get_recommended_listings(user_id, lat, lng) if user_id else []
+        popular = get_popular_listings()
+        return jsonify({
+            "status": "success",
+            "recommended": recommended,
+            "popular": popular
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
