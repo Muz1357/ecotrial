@@ -228,11 +228,11 @@ def get_hotels_near_route():
     conn.close()
     return jsonify(nearby_hotels)
 
-def get_recommended_listings(user_id, lat=None, lng=None, radius_km=5):
+def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        # Fetch past booked locations
+        # Fetch past booked locations and titles
         cursor.execute("""
             SELECT DISTINCT l.location, l.title
             FROM listing l
@@ -243,43 +243,45 @@ def get_recommended_listings(user_id, lat=None, lng=None, radius_km=5):
         past_locations = [row['location'] for row in past]
         past_titles = [row['title'] for row in past]
 
-        # Build query
-        query = """
+        if not past_locations and not past_titles:
+            return []  # no history → no recommendations
+
+        # Build query without radius/distance
+        query = f"""
             SELECT id, title, description, price, rooms_available, room_details,
-                   latitude, longitude, eco_cert_url,
-                   (6371 * acos(
-                       cos(radians(%s)) * cos(radians(latitude)) *
-                       cos(radians(longitude) - radians(%s)) +
-                       sin(radians(%s)) * sin(radians(latitude))
-                   )) AS distance,
+                   latitude, longitude, eco_cert_url, location,
                    CASE
-                       WHEN location IN ({locations}) THEN 2
-                       WHEN title IN ({titles}) THEN 1
+                       WHEN {" OR ".join(["location LIKE %s"] * len(past_locations)) if past_locations else "FALSE"} THEN 2
+                       WHEN {" OR ".join(["title LIKE %s"] * len(past_titles)) if past_titles else "FALSE"} THEN 1
                        ELSE 0
                    END AS relevance
             FROM listing
-            WHERE is_approved = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+            WHERE is_approved = 1
+            HAVING relevance > 0
+            ORDER BY relevance DESC, created_at DESC
+            LIMIT 20
         """
-        loc_placeholders = ','.join(['%s'] * len(past_locations)) if past_locations else 'NULL'
-        title_placeholders = ','.join(['%s'] * len(past_titles)) if past_titles else 'NULL'
-        query = query.format(locations=loc_placeholders, titles=title_placeholders)
-        query += " HAVING distance <= %s ORDER BY relevance DESC, distance ASC LIMIT 20"
 
-        params = [lat, lng, lat] + past_locations + past_titles + [radius_km] if user_id else [lat, lng, lat, radius_km]
+        # Build params (fuzzy matching with LIKE)
+        params = []
+        params += [f"%{loc}%" for loc in past_locations]
+        params += [f"%{t}%" for t in past_titles]
 
         cursor.execute(query, tuple(params))
         listings = cursor.fetchall()
 
-        # Convert decimals
+        # Cast to proper types
         for l in listings:
-            l['distance'] = float(l['distance'])
-            l['latitude'] = float(l['latitude'])
-            l['longitude'] = float(l['longitude'])
+            if l.get('latitude') is not None:
+                l['latitude'] = float(l['latitude'])
+            if l.get('longitude') is not None:
+                l['longitude'] = float(l['longitude'])
         return listings
 
     finally:
         cursor.close()
         connection.close()
+
 
 def get_popular_listings(limit=20):
     connection = get_connection()
