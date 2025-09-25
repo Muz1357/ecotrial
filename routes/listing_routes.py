@@ -232,7 +232,7 @@ def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        # 1. Fetch past booked locations and titles
+        # 1. Fetch past bookings
         cursor.execute("""
             SELECT DISTINCT l.location, l.title
             FROM listing l
@@ -243,10 +243,11 @@ def get_recommended_listings(user_id):
         past_locations = [row['location'] for row in past if row['location']]
         past_titles = [row['title'] for row in past if row['title']]
 
+        # 2. If no history → return empty list (or popular fallback)
         if not past_locations and not past_titles:
-            return []  # no booking history → nothing to recommend
+            return []
 
-        # 2. Build conditions dynamically
+        # 3. Build dynamic CASE
         relevance_case = []
         params = []
 
@@ -260,30 +261,38 @@ def get_recommended_listings(user_id):
             relevance_case.append(f"WHEN ({title_cond}) THEN 1")
             params.extend([f"%{t}%" for t in past_titles])
 
-        # 3. Final query
+        case_sql = " ".join(relevance_case) if relevance_case else "ELSE 0"
+
+        # 4. Final query
         query = f"""
             SELECT id, title, description, price, rooms_available, room_details,
                    latitude, longitude, eco_cert_url, location,
                    CASE
-                       {' '.join(relevance_case)}
+                       {case_sql}
                        ELSE 0
                    END AS relevance
             FROM listing
             WHERE is_approved = 1
             HAVING relevance > 0
-            ORDER BY relevance DESC, created_at DESC
+            ORDER BY relevance DESC
             LIMIT 20
         """
 
         cursor.execute(query, tuple(params))
         listings = cursor.fetchall()
 
-        # Cast types
+        # 5. Normalize lat/lng
         for l in listings:
             if l.get('latitude') is not None:
-                l['latitude'] = float(l['latitude'])
+                try:
+                    l['latitude'] = float(l['latitude'])
+                except:
+                    l['latitude'] = None
             if l.get('longitude') is not None:
-                l['longitude'] = float(l['longitude'])
+                try:
+                    l['longitude'] = float(l['longitude'])
+                except:
+                    l['longitude'] = None
 
         return listings
 
