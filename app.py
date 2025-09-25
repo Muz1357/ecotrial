@@ -21,8 +21,6 @@ from routes.business_manage import business_manage_bp
 app = Flask(__name__)
 CORS(app)
 
-socketio = SocketIO(app, cors_allowed_origins="*")
-
 # Use environment variable for secret key (set this in Heroku/Railway)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key')
 
