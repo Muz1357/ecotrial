@@ -228,7 +228,7 @@ def get_hotels_near_route():
     conn.close()
     return jsonify(nearby_hotels)
 
-def get_recommended_listings(user_id, lat=None, lng=None, radius_km=5):
+def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
@@ -249,56 +249,39 @@ def get_recommended_listings(user_id, lat=None, lng=None, radius_km=5):
             if row['title']:
                 keywords.extend(row['title'].split())
 
-        # Remove duplicates
+        # Remove duplicates & clean
         keywords = list(set([k.strip() for k in keywords if k.strip()]))
 
-        # Base query with distance calculation
+        # Base query
         query = """
-            SELECT id, title, description, price, rooms_available, room_details,
-                   latitude, longitude, eco_cert_url, location,
-                   (6371 * acos(
-                       cos(radians(%s)) * cos(radians(latitude)) *
-                       cos(radians(longitude) - radians(%s)) +
-                       sin(radians(%s)) * sin(radians(latitude))
-                   )) AS distance,
-                   0 AS relevance
-            FROM listing
-            WHERE is_approved = 1 AND latitude IS NOT NULL AND longitude IS NOT NULL
+            SELECT l.*, 0 AS relevance
+            FROM listing l
+            WHERE l.is_approved = 1
         """
+        params = []
 
-        params = [lat, lng, lat]
-
-        # Add keyword-based relevance scoring
+        # Add relevance based on keyword matches
         if keywords:
             relevance_cases = []
             for kw in keywords:
-                relevance_cases.append(f"WHEN location LIKE %s THEN 2")
+                relevance_cases.append(f"WHEN l.location LIKE %s THEN 2")
                 params.append(f"%{kw}%")
-                relevance_cases.append(f"WHEN title LIKE %s THEN 1")
+                relevance_cases.append(f"WHEN l.title LIKE %s THEN 1")
                 params.append(f"%{kw}%")
 
-            case_sql = " + CASE " + " ".join(relevance_cases) + " ELSE 0 END"
-            query = query.replace("0 AS relevance", f"( {case_sql} ) AS relevance")
+            case_sql = "CASE " + " ".join(relevance_cases) + " ELSE 0 END"
+            query = query.replace("0 AS relevance", f"{case_sql} AS relevance")
 
-        # Filter by radius
-        query += " HAVING distance <= %s ORDER BY relevance DESC, distance ASC LIMIT 20"
-        params.append(radius_km)
+        # Order by relevance, most relevant first
+        query += " ORDER BY relevance DESC, l.created_at DESC LIMIT 20"
 
         cursor.execute(query, tuple(params))
         listings = cursor.fetchall()
-
-        # Convert decimals to floats
-        for l in listings:
-            l['distance'] = float(l['distance'])
-            l['latitude'] = float(l['latitude'])
-            l['longitude'] = float(l['longitude'])
-
         return listings
 
     finally:
         cursor.close()
         connection.close()
-
 
 def get_popular_listings(limit=20):
     connection = get_connection()
