@@ -1,0 +1,5 @@
+{
+    "python.analysis.extraPaths": [
+        "./community_app_tests"
+    ]
+}

@@ -1,9 +1,9 @@
+from socket import SocketIO
 from flask import Flask
 from flask_cors import CORS
 import cloudinary
 import os
 from scheduler import start_scheduler
-# Import your blueprints
 from models.db import get_connection  
 from routes.auth_routes import auth_bp
 from routes.listing_routes import listing_bp
@@ -20,6 +20,8 @@ from routes.business_manage import business_manage_bp
 
 app = Flask(__name__)
 CORS(app)
+
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Use environment variable for secret key (set this in Heroku/Railway)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key')
