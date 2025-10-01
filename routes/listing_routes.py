@@ -245,34 +245,98 @@ def get_recommended_listings(user_id):
         recent_booking = cursor.fetchone()
         
         if recent_booking:
-            last_location = recent_booking['location']
-            print(f"User {user_id} last booked location: {last_location}")
+            full_location = recent_booking['location']
+            print(f"User {user_id} last booked in: {full_location}")
             
-            # Get ALL available listings in that location (excluding already booked ones)
-            cursor.execute("""
-                SELECT 
-                    l.*,
-                    COUNT(b.id) as total_bookings,
-                    'last_location' as recommendation_type,
-                    100 as match_score
-                FROM listing l
-                LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
-                WHERE l.is_approved = 1 
-                AND l.location = %s
-                AND l.id NOT IN (
-                    SELECT DISTINCT listing_id 
-                    FROM booking 
-                    WHERE tourist_id = %s AND is_cancelled = 0
-                )
-                GROUP BY l.id
-                ORDER BY total_bookings DESC
-                LIMIT 10
-            """, (last_location, user_id))
+            # Split location into individual words and clean them
+            words = full_location.split()
+            clean_words = []
             
-            recommendations = cursor.fetchall()
-            print(f"Found {len(recommendations)} listings in last location: {last_location}")
+            for word in words:
+                # Remove common punctuation and clean the word
+                clean_word = word.strip('.,!?;:()[]{}"\'').lower()
+                # Only include words that are meaningful (not too short, not common stop words)
+                if len(clean_word) > 2 and clean_word not in ['the', 'and', 'or', 'for', 'with', 'from', 'near', 'at', 'in', 'on']:
+                    clean_words.append(clean_word)
             
-            # If not enough listings in last location, add some popular ones as fallback
+            print(f"Location words to search: {clean_words}")
+            
+            recommendations = []
+            
+            if clean_words:
+                # Build OR conditions for all words
+                like_conditions = " OR ".join(["l.location LIKE %s"] * len(clean_words))
+                params = [f'%{word}%' for word in clean_words]
+                
+                query = f"""
+                    SELECT 
+                        l.*,
+                        COUNT(b.id) as total_bookings,
+                        'last_location' as recommendation_type,
+                        100 as match_score
+                    FROM listing l
+                    LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
+                    WHERE l.is_approved = 1 
+                    AND ({like_conditions})
+                    AND l.id NOT IN (
+                        SELECT DISTINCT listing_id 
+                        FROM booking 
+                        WHERE tourist_id = %s AND is_cancelled = 0
+                    )
+                    GROUP BY l.id
+                    ORDER BY total_bookings DESC
+                    LIMIT 10
+                """
+                
+                params.append(user_id)
+                cursor.execute(query, params)
+                recommendations = cursor.fetchall()
+                print(f"Found {len(recommendations)} listings matching location words: {clean_words}")
+            
+            # If not enough listings, try with fewer word matches
+            if len(recommendations) < 10 and len(clean_words) > 1:
+                # Try matching at least 2 words from the location
+                word_combinations = []
+                for i in range(len(clean_words)):
+                    for j in range(i + 1, len(clean_words)):
+                        word_combinations.append((clean_words[i], clean_words[j]))
+                
+                for word1, word2 in word_combinations:
+                    if len(recommendations) >= 10:
+                        break
+                        
+                    cursor.execute("""
+                        SELECT 
+                            l.*,
+                            COUNT(b.id) as total_bookings,
+                            'last_location' as recommendation_type,
+                            90 as match_score
+                        FROM listing l
+                        LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
+                        WHERE l.is_approved = 1 
+                        AND (l.location LIKE %s AND l.location LIKE %s)
+                        AND l.id NOT IN (
+                            SELECT DISTINCT listing_id 
+                            FROM booking 
+                            WHERE tourist_id = %s AND is_cancelled = 0
+                        )
+                        AND l.id NOT IN (%s)
+                        GROUP BY l.id
+                        ORDER BY total_bookings DESC
+                        LIMIT %s
+                    """, (
+                        f'%{word1}%',
+                        f'%{word2}%',
+                        user_id,
+                        ','.join([str(r['id']) for r in recommendations]) if recommendations else '0',
+                        10 - len(recommendations)
+                    ))
+                    
+                    more_recommendations = cursor.fetchall()
+                    recommendations.extend(more_recommendations)
+                    print(f"Added {len(more_recommendations)} listings matching words: '{word1}' and '{word2}'")
+            
+            # Final fallback if still not enough
             if len(recommendations) < 10:
                 cursor.execute("""
                     SELECT 
@@ -302,7 +366,7 @@ def get_recommended_listings(user_id):
                 recommendations.extend(fallback_recommendations)
                 print(f"Added {len(fallback_recommendations)} fallback recommendations")
             
-            return recommendations
+            return recommendations[:10]
         
         else:
             # New user - show popular listings
