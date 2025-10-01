@@ -254,9 +254,12 @@ def get_recommended_listings(user_id):
             
             for word in words:
                 # Remove common punctuation and clean the word
-                clean_word = word.strip('.,!?;:()[]{}"\'').lower()
-                # Only include words that are meaningful (not too short, not common stop words)
-                if len(clean_word) > 2 and clean_word not in ['the', 'and', 'or', 'for', 'with', 'from', 'near', 'at', 'in', 'on']:
+                clean_word = word.strip('.,!?;:()[]{}"\'+').lower()
+                # Only include meaningful words, exclude country names and common terms
+                if (len(clean_word) > 2 and 
+                    clean_word not in ['the', 'and', 'or', 'for', 'with', 'from', 'near', 'at', 'in', 'on', 
+                                     'post', 'rd', 'road', 'sri', 'lanka', 'srilanka'] and
+                    not clean_word.isdigit()):  # exclude numbers like 83408
                     clean_words.append(clean_word)
             
             print(f"Location words to search: {clean_words}")
@@ -269,13 +272,12 @@ def get_recommended_listings(user_id):
                 params = [f'%{word}%' for word in clean_words]
                 
                 query = f"""
-                    SELECT 
+                    SELECT DISTINCT
                         l.*,
-                        COUNT(b.id) as total_bookings,
+                        (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
                         'last_location' as recommendation_type,
                         100 as match_score
                     FROM listing l
-                    LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
                     WHERE l.is_approved = 1 
                     AND ({like_conditions})
                     AND l.id NOT IN (
@@ -283,7 +285,6 @@ def get_recommended_listings(user_id):
                         FROM booking 
                         WHERE tourist_id = %s AND is_cancelled = 0
                     )
-                    GROUP BY l.id
                     ORDER BY total_bookings DESC
                     LIMIT 10
                 """
@@ -293,40 +294,31 @@ def get_recommended_listings(user_id):
                 recommendations = cursor.fetchall()
                 print(f"Found {len(recommendations)} listings matching location words: {clean_words}")
             
-            # If not enough listings, try with fewer word matches
-            if len(recommendations) < 10 and len(clean_words) > 1:
-                # Try matching at least 2 words from the location
-                word_combinations = []
-                for i in range(len(clean_words)):
-                    for j in range(i + 1, len(clean_words)):
-                        word_combinations.append((clean_words[i], clean_words[j]))
-                
-                for word1, word2 in word_combinations:
+            # If not enough listings, try with individual words one by one
+            if len(recommendations) < 10 and clean_words:
+                for word in clean_words:
                     if len(recommendations) >= 10:
                         break
                         
                     cursor.execute("""
-                        SELECT 
+                        SELECT DISTINCT
                             l.*,
-                            COUNT(b.id) as total_bookings,
+                            (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
                             'last_location' as recommendation_type,
                             90 as match_score
                         FROM listing l
-                        LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
                         WHERE l.is_approved = 1 
-                        AND (l.location LIKE %s AND l.location LIKE %s)
+                        AND l.location LIKE %s
                         AND l.id NOT IN (
                             SELECT DISTINCT listing_id 
                             FROM booking 
                             WHERE tourist_id = %s AND is_cancelled = 0
                         )
                         AND l.id NOT IN (%s)
-                        GROUP BY l.id
                         ORDER BY total_bookings DESC
                         LIMIT %s
                     """, (
-                        f'%{word1}%',
-                        f'%{word2}%',
+                        f'%{word}%',
                         user_id,
                         ','.join([str(r['id']) for r in recommendations]) if recommendations else '0',
                         10 - len(recommendations)
@@ -334,18 +326,17 @@ def get_recommended_listings(user_id):
                     
                     more_recommendations = cursor.fetchall()
                     recommendations.extend(more_recommendations)
-                    print(f"Added {len(more_recommendations)} listings matching words: '{word1}' and '{word2}'")
+                    print(f"Added {len(more_recommendations)} listings matching word: '{word}'")
             
             # Final fallback if still not enough
             if len(recommendations) < 10:
                 cursor.execute("""
-                    SELECT 
+                    SELECT DISTINCT
                         l.*,
-                        COUNT(b.id) as total_bookings,
+                        (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
                         'popular_fallback' as recommendation_type,
                         50 as match_score
                     FROM listing l
-                    LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
                     WHERE l.is_approved = 1 
                     AND l.id NOT IN (
                         SELECT DISTINCT listing_id 
@@ -353,7 +344,6 @@ def get_recommended_listings(user_id):
                         WHERE tourist_id = %s AND is_cancelled = 0
                     )
                     AND l.id NOT IN (%s)
-                    GROUP BY l.id
                     ORDER BY total_bookings DESC
                     LIMIT %s
                 """, (
@@ -371,15 +361,13 @@ def get_recommended_listings(user_id):
         else:
             # New user - show popular listings
             cursor.execute("""
-                SELECT 
+                SELECT DISTINCT
                     l.*, 
-                    COUNT(b.id) as total_bookings,
+                    (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
                     'new_user' as recommendation_type,
                     0 as match_score
                 FROM listing l
-                LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
                 WHERE l.is_approved = 1
-                GROUP BY l.id
                 ORDER BY total_bookings DESC
                 LIMIT 10
             """)
