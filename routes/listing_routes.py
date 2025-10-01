@@ -248,94 +248,72 @@ def get_recommended_listings(user_id):
             full_location = recent_booking['location']
             print(f"User {user_id} last booked in: {full_location}")
             
-            # Split location into individual words and clean them
-            words = full_location.split()
-            clean_words = []
+            # Extract the main city name - look for the most significant word
+            # For Sri Lankan addresses, the city is usually before the postal code
+            location_parts = full_location.split(',')
+            main_location = None
             
-            for word in words:
-                # Remove common punctuation and clean the word
-                clean_word = word.strip('.,!?;:()[]{}"\'+').lower()
-                # Only include meaningful words, exclude country names and common terms
-                if (len(clean_word) > 2 and 
-                    clean_word not in ['the', 'and', 'or', 'for', 'with', 'from', 'near', 'at', 'in', 'on', 
-                                     'post', 'rd', 'road', 'sri', 'lanka', 'srilanka'] and
-                    not clean_word.isdigit()):  # exclude numbers like 83408
-                    clean_words.append(clean_word)
+            # Try to find the city name (usually the part before postal code)
+            for part in location_parts:
+                part = part.strip()
+                # Look for parts that don't contain numbers and are not too short
+                if (len(part) > 3 and 
+                    not any(char.isdigit() for char in part) and
+                    part.lower() not in ['sri lanka', 'sri', 'lanka']):
+                    words = part.split()
+                    for word in words:
+                        clean_word = word.strip('.,!?;:()[]{}"\'+').lower()
+                        if (len(clean_word) > 3 and 
+                            clean_word not in ['post', 'rd', 'road', 'street', 'st'] and
+                            not clean_word.isdigit()):
+                            main_location = clean_word
+                            break
+                    if main_location:
+                        break
             
-            print(f"Location words to search: {clean_words}")
+            # If no main location found, use the entire location but clean it
+            if not main_location:
+                # Take the first meaningful word from the location
+                words = full_location.split()
+                for word in words:
+                    clean_word = word.strip('.,!?;:()[]{}"\'+').lower()
+                    if (len(clean_word) > 3 and 
+                        clean_word not in ['post', 'rd', 'road', 'street', 'st', 'sri', 'lanka'] and
+                        not clean_word.isdigit()):
+                        main_location = clean_word
+                        break
+            
+            print(f"Main location to search: {main_location}")
             
             recommendations = []
             
-            if clean_words:
-                # Build OR conditions for all words
-                like_conditions = " OR ".join(["l.location LIKE %s"] * len(clean_words))
-                params = [f'%{word}%' for word in clean_words]
-                
-                query = f"""
-                    SELECT DISTINCT
-                        l.*,
-                        (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
-                        'last_location' as recommendation_type,
-                        100 as match_score
-                    FROM listing l
-                    WHERE l.is_approved = 1 
-                    AND ({like_conditions})
-                    AND l.id NOT IN (
-                        SELECT DISTINCT listing_id 
-                        FROM booking 
-                        WHERE tourist_id = %s AND is_cancelled = 0
-                    )
-                    ORDER BY total_bookings DESC
-                    LIMIT 10
-                """
-                
-                params.append(user_id)
-                cursor.execute(query, params)
-                recommendations = cursor.fetchall()
-                print(f"Found {len(recommendations)} listings matching location words: {clean_words}")
-            
-            # If not enough listings, try with individual words one by one
-            if len(recommendations) < 10 and clean_words:
-                for word in clean_words:
-                    if len(recommendations) >= 10:
-                        break
-                        
-                    cursor.execute("""
-                        SELECT DISTINCT
-                            l.*,
-                            (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
-                            'last_location' as recommendation_type,
-                            90 as match_score
-                        FROM listing l
-                        WHERE l.is_approved = 1 
-                        AND l.location LIKE %s
-                        AND l.id NOT IN (
-                            SELECT DISTINCT listing_id 
-                            FROM booking 
-                            WHERE tourist_id = %s AND is_cancelled = 0
-                        )
-                        AND l.id NOT IN (%s)
-                        ORDER BY total_bookings DESC
-                        LIMIT %s
-                    """, (
-                        f'%{word}%',
-                        user_id,
-                        ','.join([str(r['id']) for r in recommendations]) if recommendations else '0',
-                        10 - len(recommendations)
-                    ))
-                    
-                    more_recommendations = cursor.fetchall()
-                    recommendations.extend(more_recommendations)
-                    print(f"Added {len(more_recommendations)} listings matching word: '{word}'")
-            
-            # Final fallback if still not enough
-            if len(recommendations) < 10:
+            if main_location:
+                # Simple query without complex joins or subqueries
                 cursor.execute("""
-                    SELECT DISTINCT
-                        l.*,
-                        (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
-                        'popular_fallback' as recommendation_type,
-                        50 as match_score
+                    SELECT l.*, 
+                           'last_location' as recommendation_type,
+                           100 as match_score
+                    FROM listing l
+                    WHERE l.is_approved = 1 
+                    AND LOWER(l.location) LIKE %s
+                    AND l.id NOT IN (
+                        SELECT DISTINCT listing_id 
+                        FROM booking 
+                        WHERE tourist_id = %s AND is_cancelled = 0
+                    )
+                    LIMIT 10
+                """, (f'%{main_location}%', user_id))
+                
+                recommendations = cursor.fetchall()
+                print(f"Found {len(recommendations)} listings matching: {main_location}")
+            
+            # If still no results, try a broader search
+            if not recommendations:
+                # Get any listings from approved locations
+                cursor.execute("""
+                    SELECT l.*, 
+                           'popular' as recommendation_type,
+                           50 as match_score
                     FROM listing l
                     WHERE l.is_approved = 1 
                     AND l.id NOT IN (
@@ -343,32 +321,24 @@ def get_recommended_listings(user_id):
                         FROM booking 
                         WHERE tourist_id = %s AND is_cancelled = 0
                     )
-                    AND l.id NOT IN (%s)
-                    ORDER BY total_bookings DESC
-                    LIMIT %s
-                """, (
-                    user_id,
-                    ','.join([str(r['id']) for r in recommendations]) if recommendations else '0',
-                    10 - len(recommendations)
-                ))
+                    ORDER BY RAND()
+                    LIMIT 10
+                """, (user_id,))
                 
-                fallback_recommendations = cursor.fetchall()
-                recommendations.extend(fallback_recommendations)
-                print(f"Added {len(fallback_recommendations)} fallback recommendations")
+                recommendations = cursor.fetchall()
+                print(f"Using {len(recommendations)} popular listings as fallback")
             
-            return recommendations[:10]
+            return recommendations
         
         else:
             # New user - show popular listings
             cursor.execute("""
-                SELECT DISTINCT
-                    l.*, 
-                    (SELECT COUNT(*) FROM booking b WHERE b.listing_id = l.id AND b.is_cancelled = 0) as total_bookings,
-                    'new_user' as recommendation_type,
-                    0 as match_score
+                SELECT l.*, 
+                       'new_user' as recommendation_type,
+                       0 as match_score
                 FROM listing l
                 WHERE l.is_approved = 1
-                ORDER BY total_bookings DESC
+                ORDER BY RAND()
                 LIMIT 10
             """)
             return cursor.fetchall()
