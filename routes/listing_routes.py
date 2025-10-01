@@ -248,41 +248,21 @@ def get_recommended_listings(user_id):
             full_location = recent_booking['location']
             print(f"User {user_id} last booked in: {full_location}")
             
-            # Simple extraction - just look for "Trincomalee" or similar city names
-            # For the example: "J699+75H Sampalthivu Post Uppuveli, Sarvodaya Rd, Trincomalee 83408, Sri Lanka"
-            # We want to extract "Trincomalee"
+            # Extract city name - look for common Sri Lankan cities
+            city_keywords = ['trincomalee', 'colombo', 'kandy', 'galle', 'jaffna', 'negombo', 'batticaloa', 'anuradhapura', 'polonnaruwa', 'matara', 'hambantota']
             
-            # Look for the city name (usually before the postal code)
-            location_parts = full_location.split(',')
             main_location = None
-            
-            for part in location_parts:
-                part = part.strip()
-                # Check if this part contains a recognizable city name
-                if 'trincomalee' in part.lower():
-                    main_location = 'trincomalee'
-                    break
-                elif 'colombo' in part.lower():
-                    main_location = 'colombo'
-                    break
-                elif 'kandy' in part.lower():
-                    main_location = 'kandy'
-                    break
-                elif 'galle' in part.lower():
-                    main_location = 'galle'
-                    break
-                elif 'jaffna' in part.lower():
-                    main_location = 'jaffna'
+            for city in city_keywords:
+                if city in full_location.lower():
+                    main_location = city
                     break
             
-            # If no specific city found, try to extract any meaningful word
+            # If no city found, try to extract any word longer than 4 characters
             if not main_location:
-                words = full_location.split()
+                words = full_location.lower().split()
                 for word in words:
-                    clean_word = word.strip('.,!?;:()[]{}"\'+').lower()
-                    if (len(clean_word) > 3 and 
-                        clean_word not in ['post', 'rd', 'road', 'street', 'st', 'sri', 'lanka'] and
-                        not clean_word.isdigit()):
+                    clean_word = word.strip('.,!?;:()[]{}"\'+')
+                    if len(clean_word) > 4 and not clean_word.isdigit():
                         main_location = clean_word
                         break
             
@@ -291,48 +271,55 @@ def get_recommended_listings(user_id):
             recommendations = []
             
             if main_location:
-                # Simple query - just search for the main location word
+                # Search with case-insensitive matching
+                # Option 1: Use LOWER on both sides
                 cursor.execute("""
                     SELECT l.*, 
                            'last_location' as recommendation_type,
                            100 as match_score
                     FROM listing l
                     WHERE l.is_approved = 1 
-                    AND LOWER(l.location) LIKE %s
-                    AND l.id NOT IN (
-                        SELECT DISTINCT listing_id 
-                        FROM booking 
-                        WHERE tourist_id = %s AND is_cancelled = 0
-                    )
+                    AND (LOWER(l.location) LIKE LOWER(%s) OR LOWER(l.title) LIKE LOWER(%s))
                     LIMIT 10
-                """, (f'%{main_location}%', user_id))
+                """, (f'%{main_location}%', f'%{main_location}%'))
                 
                 recommendations = cursor.fetchall()
                 print(f"Found {len(recommendations)} listings matching: {main_location}")
+                
+                # If still no results, try searching with capitalized first letter
+                if len(recommendations) == 0:
+                    capitalized_location = main_location.capitalize()
+                    cursor.execute("""
+                        SELECT l.*, 
+                               'last_location' as recommendation_type,
+                               100 as match_score
+                        FROM listing l
+                        WHERE l.is_approved = 1 
+                        AND (l.location LIKE %s OR l.title LIKE %s)
+                        LIMIT 10
+                    """, (f'%{capitalized_location}%', f'%{capitalized_location}%'))
+                    
+                    recommendations = cursor.fetchall()
+                    print(f"Found {len(recommendations)} listings matching capitalized: {capitalized_location}")
             
-            # If still no results, get any approved listings
-            if not recommendations:
+            # If still no results, get ANY approved listings
+            if len(recommendations) == 0:
                 cursor.execute("""
                     SELECT l.*, 
                            'popular' as recommendation_type,
                            50 as match_score
                     FROM listing l
-                    WHERE l.is_approved = 1 
-                    AND l.id NOT IN (
-                        SELECT DISTINCT listing_id 
-                        FROM booking 
-                        WHERE tourist_id = %s AND is_cancelled = 0
-                    )
+                    WHERE l.is_approved = 1
                     LIMIT 10
-                """, (user_id,))
+                """)
                 
                 recommendations = cursor.fetchall()
-                print(f"Using {len(recommendations)} popular listings as fallback")
+                print(f"Using {len(recommendations)} approved listings as fallback")
             
             return recommendations
         
         else:
-            # New user - show popular listings
+            # New user - show any approved listings
             cursor.execute("""
                 SELECT l.*, 
                        'new_user' as recommendation_type,
