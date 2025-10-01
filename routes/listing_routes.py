@@ -371,5 +371,73 @@ def home_listings():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-# REMOVE THE DUPLICATE get_recommended_listings FUNCTION FROM THE BOTTOM!
-# Delete everything from "def get_recommended_listings(user_id):" line 484 onwards
+@listing_bp.route('/user-recommendation-insights', methods=['GET'])
+def get_user_recommendation_insights():
+    user_id = request.args.get('user_id', type=int)
+    
+    if not user_id:
+        return jsonify({"error": "User ID required"}), 400
+    
+    connection = get_connection()
+    cursor = connection.cursor(dictionary=True)
+    
+    try:
+        # Get user's detailed booking patterns
+        cursor.execute("""
+            SELECT 
+                COUNT(b.id) as total_bookings,
+                COUNT(DISTINCT l.location) as unique_locations,
+                COUNT(DISTINCT l.id) as unique_listings,
+                AVG(b.points_earned) as avg_points_per_booking,
+                MIN(b.created_at) as first_booking_date,
+                MAX(b.created_at) as last_booking_date
+            FROM booking b
+            JOIN listing l ON b.listing_id = l.id
+            WHERE b.tourist_id = %s AND b.is_cancelled = 0
+        """, (user_id,))
+        
+        booking_stats = cursor.fetchone()
+        
+        # Get top locations with detailed analytics
+        cursor.execute("""
+            SELECT 
+                l.location,
+                COUNT(b.id) as visit_count,
+                AVG(CAST(l.price AS DECIMAL)) as avg_price_in_location,
+                AVG(b.points_earned) as avg_points_earned,
+                COUNT(DISTINCT l.id) as unique_listings_in_location,
+                MAX(b.created_at) as last_visit_date
+            FROM booking b
+            JOIN listing l ON b.listing_id = l.id
+            WHERE b.tourist_id = %s AND b.is_cancelled = 0
+            GROUP BY l.location
+            ORDER BY visit_count DESC
+            LIMIT 3
+        """, (user_id,))
+        
+        top_locations = cursor.fetchall()
+        
+        # Determine personalization level
+        total_bookings = booking_stats['total_bookings'] or 0
+        if total_bookings >= 3:
+            personalization_level = "high"
+        elif total_bookings >= 1:
+            personalization_level = "medium"
+        else:
+            personalization_level = "low"
+        
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "booking_stats": booking_stats,
+            "top_locations": top_locations,
+            "personalization_level": personalization_level,
+            "has_booking_history": total_bookings > 0
+        })
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in get_user_recommendation_insights: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        cursor.close()
+        connection.close()
