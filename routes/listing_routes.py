@@ -309,53 +309,64 @@ def get_recommended_listings(user_id):
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
     try:
-        
+        # Get user's detailed booking history and preferences
         cursor.execute("""
             SELECT 
                 l.location,
                 l.room_details,
-                l.price_range,
-                COUNT(b.id) as booking_count
+                l.price,
+                l.id as listing_id,
+                COUNT(b.id) as booking_count,
+                AVG(b.points_earned) as avg_points_earned
             FROM booking b
             JOIN listing l ON b.listing_id = l.id
             WHERE b.tourist_id = %s AND b.is_cancelled = 0
-            GROUP BY l.location, l.room_details, l.price_range
+            GROUP BY l.location, l.room_details, l.price, l.id
             ORDER BY booking_count DESC
-            LIMIT 5
+            LIMIT 10
         """, (user_id,))
         
-        user_preferences = cursor.fetchall()
+        user_booking_history = cursor.fetchall()
         
-        if user_preferences:
+        if user_booking_history:
+            # Calculate user preferences
+            favorite_locations = [booking['location'] for booking in user_booking_history[:3]]
+            price_range = calculate_user_price_range(user_booking_history)
+            preferred_room_types = extract_room_preferences(user_booking_history)
             
+            # Build personalized recommendation query
             recommendations = []
             
+            # Strategy 1: Similar listings in favorite locations
+            if favorite_locations:
+                placeholders = ','.join(['%s'] * len(favorite_locations))
+                cursor.execute(f"""
+                    SELECT l.*, 
+                           3 as location_match_score,
+                           (CASE WHEN l.price BETWEEN %s AND %s THEN 2 ELSE 0 END) as price_match_score,
+                           COUNT(b.id) as total_bookings
+                    FROM listing l
+                    LEFT JOIN booking b ON l.id = b.listing_id
+                    WHERE l.is_approved = 1 
+                    AND l.location IN ({placeholders})
+                    AND l.id NOT IN (
+                        SELECT listing_id FROM booking 
+                        WHERE tourist_id = %s AND is_cancelled = 0
+                    )
+                    GROUP BY l.id
+                    ORDER BY (location_match_score + price_match_score) DESC, total_bookings DESC
+                    LIMIT 6
+                """, favorite_locations + [price_range['min'], price_range['max'], user_id])
+                
+                location_based = cursor.fetchall()
+                recommendations.extend(location_based)
             
-            favorite_location = user_preferences[0]['location']
-            cursor.execute("""
-                SELECT l.*, 
-                       (CASE WHEN l.location = %s THEN 3 ELSE 0 END) as location_score,
-                       (CASE WHEN l.room_details LIKE %s THEN 2 ELSE 0 END) as room_score,
-                       COUNT(b.id) as popularity_score
-                FROM listing l
-                LEFT JOIN booking b ON l.id = b.listing_id
-                WHERE l.is_approved = 1 
-                AND l.id NOT IN (
-                    SELECT listing_id FROM booking 
-                    WHERE tourist_id = %s AND is_cancelled = 0
-                )
-                GROUP BY l.id
-                ORDER BY (location_score + room_score + popularity_score) DESC
-                LIMIT 10
-            """, (favorite_location, f"%{user_preferences[0].get('room_details', '')}%", user_id))
-            
-            location_based = cursor.fetchall()
-            recommendations.extend(location_based)
-            
-            
+            # Strategy 2: Similar price range but new locations
             if len(recommendations) < 10:
                 cursor.execute("""
-                    SELECT l.*, COUNT(b.id) as popularity_score
+                    SELECT l.*, 
+                           2 as price_match_score,
+                           COUNT(b.id) as total_bookings
                     FROM listing l
                     LEFT JOIN booking b ON l.id = b.listing_id
                     WHERE l.is_approved = 1 
@@ -366,11 +377,11 @@ def get_recommended_listings(user_id):
                     )
                     AND l.id NOT IN (%s)
                     GROUP BY l.id
-                    ORDER BY popularity_score DESC
+                    ORDER BY price_match_score DESC, total_bookings DESC
                     LIMIT %s
                 """, (
-                    max(0, float(user_preferences[0].get('price', 0)) * 0.7),
-                    float(user_preferences[0].get('price', 0)) * 1.3,
+                    price_range['min'] * 0.8,  # Slightly wider range for discovery
+                    price_range['max'] * 1.2,
                     user_id,
                     ','.join([str(r['id']) for r in recommendations]) if recommendations else '0',
                     10 - len(recommendations)
@@ -379,12 +390,15 @@ def get_recommended_listings(user_id):
                 price_based = cursor.fetchall()
                 recommendations.extend(price_based)
             
-            
+            # Strategy 3: Highly rated listings that match user's earned points pattern
             if len(recommendations) < 10:
+                avg_user_points = calculate_avg_user_points(user_booking_history)
                 cursor.execute("""
-                    SELECT l.*, COUNT(b.id) as booking_count
+                    SELECT l.*, 
+                           AVG(b.points_earned) as avg_points,
+                           COUNT(b.id) as total_bookings
                     FROM listing l
-                    LEFT JOIN booking b ON l.id = b.listing_id
+                    LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
                     WHERE l.is_approved = 1 
                     AND l.id NOT IN (
                         SELECT listing_id FROM booking 
@@ -392,104 +406,139 @@ def get_recommended_listings(user_id):
                     )
                     AND l.id NOT IN (%s)
                     GROUP BY l.id
-                    ORDER BY booking_count DESC
+                    HAVING avg_points BETWEEN %s AND %s
+                    ORDER BY total_bookings DESC, avg_points DESC
                     LIMIT %s
                 """, (
                     user_id,
                     ','.join([str(r['id']) for r in recommendations]) if recommendations else '0',
+                    avg_user_points * 0.7,
+                    avg_user_points * 1.3,
                     10 - len(recommendations)
                 ))
                 
-                popular_fallback = cursor.fetchall()
-                recommendations.extend(popular_fallback)
+                points_based = cursor.fetchall()
+                recommendations.extend(points_based)
                 
-            return recommendations[:10]  
+            return recommendations[:10]
         
         else:
-           
+            # New user - show diverse popular listings
             cursor.execute("""
-                SELECT l.*, COUNT(b.id) as booking_count
+                SELECT l.*, COUNT(b.id) as total_bookings,
+                       'new_user' as recommendation_type
                 FROM listing l
                 LEFT JOIN booking b ON l.id = b.listing_id
                 WHERE l.is_approved = 1
                 GROUP BY l.id
-                ORDER BY booking_count DESC
+                ORDER BY total_bookings DESC, RAND()
                 LIMIT 10
             """)
             return cursor.fetchall()
             
     except Exception as e:
         current_app.logger.error(f"Error in get_recommended_listings: {str(e)}")
-        
-        cursor.execute("""
-            SELECT l.*, COUNT(b.id) as booking_count
-            FROM listing l
-            LEFT JOIN booking b ON l.id = b.listing_id
-            WHERE l.is_approved = 1
-            GROUP BY l.id
-            ORDER BY booking_count DESC
-            LIMIT 10
-        """)
-        return cursor.fetchall()
+        return []
     finally:
         cursor.close()
         connection.close()
 
+def calculate_user_price_range(booking_history):
+    if not booking_history:
+        return {'min': 0, 'max': 1000}
+    
+    prices = [float(booking['price']) for booking in booking_history if booking['price']]
+    if not prices:
+        return {'min': 0, 'max': 1000}
+    
+    return {
+        'min': max(0, min(prices) * 0.7),
+        'max': max(prices) * 1.3
+    }
 
-def get_popular_listings(limit=20):
+def extract_room_preferences(booking_history):
+    room_details = [booking['room_details'] for booking in booking_history if booking['room_details']]
+    # Simple keyword extraction - you can enhance this
+    keywords = []
+    for detail in room_details:
+        if 'sea' in detail.lower() or 'ocean' in detail.lower():
+            keywords.append('sea_view')
+        if 'mountain' in detail.lower():
+            keywords.append('mountain_view')
+        if 'garden' in detail.lower():
+            keywords.append('garden_view')
+    return list(set(keywords))
+
+def calculate_avg_user_points(booking_history):
+    points = [booking['avg_points_earned'] for booking in booking_history if booking['avg_points_earned']]
+    return sum(points) / len(points) if points else 50
+
+@listing_bp.route('/user-recommendation-insights', methods=['GET'])
+def get_user_recommendation_insights():
+    user_id = request.args.get('user_id', type=int)
+    
+    if not user_id:
+        return jsonify({"error": "User ID required"}), 400
+    
     connection = get_connection()
     cursor = connection.cursor(dictionary=True)
+    
     try:
-        
+        # Get user's detailed booking patterns
         cursor.execute("""
             SELECT 
-                l.*, 
-                COUNT(b.id) AS total_bookings,
-                SUM(CASE WHEN b.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) as recent_bookings,
+                COUNT(b.id) as total_bookings,
+                AVG(b.points_earned) as avg_points_per_booking,
+                MIN(b.created_at) as first_booking_date,
+                MAX(b.created_at) as last_booking_date
+            FROM booking b
+            WHERE b.tourist_id = %s AND b.is_cancelled = 0
+        """, (user_id,))
+        
+        booking_stats = cursor.fetchone()
+        
+        # Get top locations with details
+        cursor.execute("""
+            SELECT 
+                l.location,
+                COUNT(b.id) as visit_count,
+                AVG(l.price) as avg_price_in_location,
                 AVG(b.points_earned) as avg_points_earned
-            FROM listing l
-            LEFT JOIN booking b ON l.id = b.listing_id AND b.is_cancelled = 0
-            WHERE l.is_approved = 1
-            GROUP BY l.id
-            ORDER BY 
-                recent_bookings DESC,
-                total_bookings DESC,
-                avg_points_earned DESC
-            LIMIT %s
-        """, (limit,))
+            FROM booking b
+            JOIN listing l ON b.listing_id = l.id
+            WHERE b.tourist_id = %s AND b.is_cancelled = 0
+            GROUP BY l.location
+            ORDER BY visit_count DESC
+            LIMIT 3
+        """, (user_id,))
         
-        listings = cursor.fetchall()
+        top_locations = cursor.fetchall()
         
+        # Get booking frequency pattern
+        cursor.execute("""
+            SELECT 
+                DATE_FORMAT(b.created_at, '%%Y-%%m') as month,
+                COUNT(b.id) as bookings_count
+            FROM booking b
+            WHERE b.tourist_id = %s AND b.is_cancelled = 0
+            GROUP BY DATE_FORMAT(b.created_at, '%%Y-%%m')
+            ORDER BY month DESC
+            LIMIT 6
+        """, (user_id,))
         
-        for listing in listings:
-            total_bookings = listing['total_bookings'] or 0
-            recent_bookings = listing['recent_bookings'] or 0
-            
-            if recent_bookings >= 10:
-                listing['popularity_badge'] = '🔥 Trending'
-            elif total_bookings >= 50:
-                listing['popularity_badge'] = '⭐ Most Popular'
-            elif recent_bookings >= 5:
-                listing['popularity_badge'] = '📈 Rising'
-            else:
-                listing['popularity_badge'] = None
-                
-        return listings
+        booking_pattern = cursor.fetchall()
+        
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "booking_stats": booking_stats,
+            "top_locations": top_locations,
+            "booking_pattern": booking_pattern,
+            "personalization_level": "high" if booking_stats['total_bookings'] > 2 else "medium" if booking_stats['total_bookings'] > 0 else "low"
+        })
         
     except Exception as e:
-        current_app.logger.error(f"Error in get_popular_listings: {str(e)}")
-        
-        cursor.execute("""
-            SELECT l.*, COUNT(b.id) AS booking_count
-            FROM listing l
-            LEFT JOIN booking b ON l.id = b.listing_id
-            WHERE l.is_approved = 1
-            GROUP BY l.id
-            ORDER BY booking_count DESC
-            LIMIT %s
-        """, (limit,))
-        return cursor.fetchall()
+        return jsonify({"status": "error", "message": str(e)}), 500
     finally:
         cursor.close()
         connection.close()
-
