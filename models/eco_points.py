@@ -20,7 +20,7 @@ class EcoPoints:
         cursor = conn.cursor()
         cursor.execute("UPDATE user_account SET eco_points = GREATEST(eco_points + %s, 0) WHERE id = %s", (delta, user_id))
         conn.commit()
-        # fetch new balance
+        
         cursor2 = conn.cursor(dictionary=True)
         cursor2.execute("SELECT eco_points FROM user_account WHERE id = %s", (user_id,))
         row = cursor2.fetchone()

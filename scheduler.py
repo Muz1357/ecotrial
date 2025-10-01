@@ -9,7 +9,7 @@ def auto_release_rooms():
 
     now = datetime.now()
 
-    # Get bookings that are NOT cancelled and have check_out < now
+    
     cursor.execute("""
         SELECT * FROM booking 
         WHERE is_cancelled = FALSE AND check_out < %s 
@@ -30,7 +30,7 @@ def auto_release_rooms():
             """, (listing_id, current_date))
             current_date += timedelta(days=1)
 
-        # Mark booking as completed so it doesn't get reprocessed
+        
         cursor.execute("UPDATE booking SET is_completed = TRUE WHERE id = %s", (booking['id'],))
 
     conn.commit()
@@ -39,5 +39,5 @@ def auto_release_rooms():
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(auto_release_rooms, 'interval', minutes=30)  # run every 30 mins
+    scheduler.add_job(auto_release_rooms, 'interval', minutes=30)  
     scheduler.start()

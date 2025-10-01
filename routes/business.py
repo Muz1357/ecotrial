@@ -5,7 +5,7 @@ import cloudinary.uploader
 
 business_bp = Blueprint('business', __name__)
 
-# ------- Business Report -------
+
 @business_bp.route('/report/<int:business_owner_id>', methods=['GET'])
 def business_report(business_owner_id):
     conn = get_connection()
@@ -14,21 +14,21 @@ def business_report(business_owner_id):
 
     cursor = conn.cursor(dictionary=True)
 
-    # Owner info
+    
     cursor.execute("""
         SELECT id, name, business_name, profile_image
         FROM user_account WHERE id = %s
     """, (business_owner_id,))
     owner = cursor.fetchone()
 
-    # Listings
+   
     cursor.execute("""
     SELECT id, title, price, rooms_available, is_approved, location, image_path
         FROM listing WHERE user_id = %s
     """, (business_owner_id,))
     listings = cursor.fetchall()
 
-    # Booking summary
+    
     cursor.execute("""
         SELECT 
             COUNT(*) AS total_bookings,
@@ -42,7 +42,7 @@ def business_report(business_owner_id):
     """, (business_owner_id,))
     booking_summary = cursor.fetchone()
 
-    # Room utilization
+    
     cursor.execute("""
         SELECT 
             COALESCE(SUM(ra.rooms_booked),0) AS total_rooms_booked,
@@ -53,7 +53,7 @@ def business_report(business_owner_id):
     """, (business_owner_id,))
     room_data = cursor.fetchone()
 
-    # Community experience summary
+    
     cursor.execute("""
         SELECT 
             COUNT(*) AS total_community_bookings,

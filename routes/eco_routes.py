@@ -1,4 +1,4 @@
-# eco_routes.py (or extend booking_bp)
+
 from flask import Blueprint, request, jsonify
 from dateutil import parser
 from models.db import get_connection
@@ -7,7 +7,7 @@ from datetime import datetime
 
 eco_bp = Blueprint('eco', __name__)
 
-# GET /eco_points/<user_id>/balance  (you already have a version — keep this)
+
 @eco_bp.route('/eco_points/<int:user_id>/balance', methods=['GET'])
 def get_eco_balance(user_id):
     conn = get_connection()

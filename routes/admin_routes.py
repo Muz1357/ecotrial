@@ -7,7 +7,7 @@ admin_bp = Blueprint('admin', __name__)
 
 GOOGLE_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs')
 
-# --- Admin Login ---
+
 @admin_bp.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     if request.method == 'POST':
@@ -22,7 +22,7 @@ def admin_login():
     return render_template('admin_login.html')
 
 
-# --- Dashboard (listings + community experiences) ---
+
 @admin_bp.route('/admin/dashboard')
 def admin_dashboard():
     if not session.get('admin_logged_in'):
@@ -30,11 +30,11 @@ def admin_dashboard():
 
     with get_connection() as conn:
         with conn.cursor(dictionary=True) as cursor:
-            # Pending listings
+            
             cursor.execute("SELECT id, title FROM listing WHERE is_approved=FALSE")
             pending_listings = cursor.fetchall()
 
-            # Pending community experiences
+            
             cursor.execute("""
                 SELECT id, title, location, price, certificate_path
                 FROM community_experience 
@@ -49,7 +49,7 @@ def admin_dashboard():
     )
 
 
-# --- Approve Listing ---
+
 @admin_bp.route('/admin/approve-listing/<int:listing_id>', methods=['POST'])
 def approve_listing_web(listing_id):
     if not session.get('admin_logged_in'):
@@ -63,7 +63,7 @@ def approve_listing_web(listing_id):
     return redirect(url_for('admin.admin_dashboard'))
 
 
-# --- Decline Listing ---
+
 @admin_bp.route('/admin/decline-listing/<int:listing_id>', methods=['POST'])
 def decline_listing_web(listing_id):
     if not session.get('admin_logged_in'):
@@ -77,7 +77,7 @@ def decline_listing_web(listing_id):
     return redirect(url_for('admin.admin_dashboard'))
 
 
-# --- View Listing Detail ---
+
 @admin_bp.route('/admin/listing/<int:listing_id>')
 def view_listing_detail(listing_id):
     if not session.get('admin_logged_in'):
@@ -95,7 +95,7 @@ def view_listing_detail(listing_id):
     return render_template('listing_detail.html', listing=listing)
 
 
-# --- Geocoding Helper ---
+
 def geocode_location(address):
     """Convert address text into latitude/longitude using Google Maps API"""
     if not GOOGLE_API_KEY:
@@ -116,7 +116,7 @@ def geocode_location(address):
     return None, None
 
 
-# --- Approve Community Experience ---
+
 @admin_bp.route('/admin/community-experiences/<int:exp_id>/approve', methods=['POST'])
 def approve_community_experience(exp_id):
     if not session.get('admin_logged_in'):
@@ -144,7 +144,7 @@ def approve_community_experience(exp_id):
     return redirect(url_for('admin.admin_dashboard'))
 
 
-# --- Decline Community Experience ---
+
 @admin_bp.route('/admin/community-experiences/<int:exp_id>/decline', methods=['POST'])
 def decline_community_experience(exp_id):
     if not session.get('admin_logged_in'):
@@ -159,7 +159,7 @@ def decline_community_experience(exp_id):
     return redirect(url_for('admin.admin_dashboard'))
 
 
-# --- View Community Experience Detail ---
+
 @admin_bp.route('/admin/community-experiences/<int:exp_id>')
 def view_community_experience(exp_id):
     if not session.get('admin_logged_in'):
@@ -177,7 +177,7 @@ def view_community_experience(exp_id):
     return render_template('community_experience_detail.html', experience=exp)
 
 
-# --- Logout ---
+
 @admin_bp.route('/admin/logout')
 def admin_logout():
     session.pop('admin_logged_in', None)

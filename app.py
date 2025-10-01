@@ -21,10 +21,10 @@ from routes.business_manage import business_manage_bp
 app = Flask(__name__)
 CORS(app)
 
-# Use environment variable for secret key (set this in Heroku/Railway)
+
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'default_secret_key')
 
-# Configure Cloudinary from environment variables
+
 cloudinary.config(
     cloud_name='dfnzcn8dl',
     api_key='543959871613564',
@@ -32,7 +32,7 @@ cloudinary.config(
     secure=True
 )
 
-# Register blueprints
+
 app.register_blueprint(auth_bp)
 app.register_blueprint(listing_bp)
 app.register_blueprint(booking_bp)

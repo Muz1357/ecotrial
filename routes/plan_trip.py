@@ -7,12 +7,12 @@ from datetime import datetime
 
 plan_trip_bp = Blueprint('plan_trip', __name__)
 
-# Configuration
+
 GOOGLE_API_KEY = os.getenv('GOOGLE_MAPS_API_KEY', 'AIzaSyA0kovojziyFywE0eF1mnMJdJnubZCX6Hs')
 HOTEL_SEARCH_RADIUS_KM = 20
 MAX_HOTELS_TO_RETURN = 20
 
-# CO2 emission factors (kg CO2 per km)
+
 EMISSION_FACTORS = {
     'Car': 0.160, 
     'bicycling': 0.0,
@@ -48,7 +48,7 @@ def decode_polyline(polyline_str):
     length = len(polyline_str)
     
     while index < length:
-        # Latitude
+        
         shift, result = 0, 0
         while True:
             b = ord(polyline_str[index]) - 63
@@ -60,7 +60,7 @@ def decode_polyline(polyline_str):
         dlat = ~(result >> 1) if (result & 1) else (result >> 1)
         lat += dlat
 
-        # Longitude
+        
         shift, result = 0, 0
         while True:
             b = ord(polyline_str[index]) - 63
@@ -106,13 +106,13 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Validate input parameters
+       
         if location and (lat or lng):
             current_app.logger.warning("Both location and coordinates provided - using coordinates")
             location = None
 
         if location:
-            # Location-based search (case-insensitive)
+            
             query = """
                 SELECT 
                     id, title, location, description, is_approved, eco_cert_url,
@@ -128,7 +128,7 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
             search_term = f"%{location}%"
             cursor.execute(query, (search_term, MAX_HOTELS_TO_RETURN))
         elif lat is not None and lng is not None and radius_km:
-            # Coordinate-based search
+            
             query = """
                 SELECT 
                     id, title, location, description, is_approved, eco_cert_url,
@@ -155,7 +155,7 @@ def find_nearby_hotels(location=None, lat=None, lng=None, radius_km=None):
         hotels = cursor.fetchall()
         current_app.logger.info(f"Found {len(hotels)} hotels matching criteria")
         
-        # Convert numeric fields to proper types
+        
         processed_hotels = []
         for hotel in hotels:
             try:
@@ -195,14 +195,14 @@ def get_recommendations(routes):
     if not routes:
         return {}
     
-    # Filter out walking if distance is too long (>5km)
+    
     valid_routes = [r for r in routes if not (r['mode'] == 'walking' and r['distance_km'] > 5)]
     
     return {
         'fastest': min(valid_routes, key=lambda x: x['duration_min']),
         'eco_friendliest': min(valid_routes, key=lambda x: x['co2_kg']),
         'cheapest': next((r for r in valid_routes if r['mode'] in ['bus', 'transit']), 
-                    valid_routes[0])  # Fallback to first route if no transit
+                    valid_routes[0])  
     }
 
 @plan_trip_bp.route('/plan_trip', methods=['POST'])
@@ -216,7 +216,7 @@ def plan_trip():
     if not start or not end:
         return jsonify({"error": "Both start and end locations are required"}), 400
     
-    # Get routes from Google Directions API
+    
     routes = []
     modes = ['driving', 'transit', 'bicycling', 'walking']
     
@@ -262,14 +262,14 @@ def plan_trip():
     if not routes:
         return jsonify({"error": "Could not calculate any routes"}), 400
     
-    # Find approved eco-certified hotels near route midpoint
+    
     if isinstance(end, str) and ',' not in end:
-        # First try exact location match
+       
         hotels = find_nearby_hotels(location=end)
         current_app.logger.info(f"Initial search for '{end}' found {len(hotels)} hotels")
         
         if not hotels:
-            # Fallback to geocoding if no hotels found by name
+            
             destination_coords = geocode_location(end)
             if destination_coords:
                 hotels = find_nearby_hotels(
@@ -279,7 +279,7 @@ def plan_trip():
                 )
                 current_app.logger.info(f"Geocode search found {len(hotels)} hotels")
     else:
-        # Handle coordinate-based search
+        
         destination_coords = (
             end if isinstance(end, dict) 
             else {'lat': float(end.split(',')[0]), 'lng': float(end.split(',')[1])}
@@ -290,7 +290,7 @@ def plan_trip():
             radius_km=HOTEL_SEARCH_RADIUS_KM
         )
 
-    # Prepare response
+    
     response_data = {
         "status": "success",
         "routes": routes,

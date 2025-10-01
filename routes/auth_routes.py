@@ -16,17 +16,17 @@ def register():
     if not all([name, email, password, role]):
         return jsonify({'message': 'Missing required fields'}), 400
 
-    # Check if email already exists
+    
     if User.find_by_email(email):
         return jsonify({'message': 'Email already registered'}), 400
 
     hashed_password = generate_password_hash(password)
 
-    # Require business name for business owners
+    
     if role == 'business_owner' and not business_name:
         return jsonify({'message': 'Business name is required for business owners'}), 400
 
-    # Create new user (no proof or approval required)
+    
     new_user = User.create(
         name=name,
         email=email,

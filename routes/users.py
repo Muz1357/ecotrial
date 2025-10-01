@@ -13,7 +13,7 @@ def update_user(user_id):
         email = request.form.get('email')
         profile_image_url = None
 
-        # Handle profile image upload
+        
         if 'profile_image' in request.files:
             file = request.files['profile_image']
             upload_result = cloudinary.uploader.upload(file, folder="profile_images")
@@ -49,7 +49,7 @@ def update_user(user_id):
 
 
 
-# --- Delete user ---
+
 @user_bp.route('/users/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
     try:
